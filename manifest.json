@@ -1,0 +1,17 @@
+{
+  "name": "Çok Dilli Kelime Merkezi",
+  "short_name": "Kelime Merkezi",
+  "description": "Gelişmiş Çok Dilli Kelime Sözlüğü ve Sınav Merkezi",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4a6fa5",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

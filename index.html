@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gelişmiş Çok Dilli Kelime Sözlüğü ve Sınav Merkezi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+    <!-- Use localforage for easier IndexedDB usage -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+
+    <!-- Main Container -->
+    <div id="app-container">
+        
+        <!-- Screen 1: Home / Language Selection -->
+        <section id="screen-home" class="screen active">
+            <div class="home-layout-container">
+                <!-- Left Panel: Full Poster Image -->
+                <div class="home-poster-panel">
+                    <img src="gelistirici.png" class="full-poster-img" alt="Geliştirici Posteri">
+                </div>
+                
+                <!-- Right Panel: Hero & Language Selector -->
+                <div class="home-content-panel">
+                    <div class="hero">
+                        <div class="profile-avatar-container">
+                            <img src="gelistirici.png" class="profile-avatar" alt="Dr. Bahadır Murat ÇAKMAKLI">
+                        </div>
+                        <h1 class="glow">Çok Dilli Kelime Merkezi</h1>
+                        <p>Öğrenmek istediğiniz dili seçin</p>
+                    </div>
+                    
+                    <div class="language-grid">
+                        <div class="lang-card english" onclick="selectLanguage('english')">
+                            <div class="lang-icon">🇬🇧</div>
+                            <h2>İngilizce</h2>
+                        </div>
+                        <div class="lang-card spanish" onclick="selectLanguage('spanish')">
+                            <div class="lang-icon">🇪🇸</div>
+                            <h2>İspanyolca</h2>
+                        </div>
+                        <div class="lang-card italian" onclick="selectLanguage('italian')">
+                            <div class="lang-icon">🇮🇹</div>
+                            <h2>İtalyanca</h2>
+                        </div>
+                        <div class="lang-card russian" onclick="selectLanguage('russian')">
+                            <div class="lang-icon">🇷🇺</div>
+                            <h2>Rusça</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 2: Language Dashboard -->
+        <section id="screen-dashboard" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-home')">⟵ Geri</button>
+                <h1 id="current-lang-title">İngilizce</h1>
+                <div></div>
+            </header>
+
+            <div class="dashboard-grid">
+                <div class="dash-card upload-word">
+                    <h3>Kelime Listesi Yükle</h3>
+                    <p>Word belgesinden (.docx) yeni kelimeler ekleyin.</p>
+                    <label class="btn-primary">
+                        Dosya Seç
+                        <input type="file" id="file-word-upload" accept=".docx" hidden>
+                    </label>
+                </div>
+                
+                <div class="dash-card search-word" onclick="showAddWordScreen()">
+                    <h3>Akıllı Kelime Arama & Ekle</h3>
+                    <p>Sözlükten aratarak otomatik doldurma ile yeni kelimeler ekleyin.</p>
+                </div>
+                
+                <div class="dash-card upload-test">
+                    <h3>Çoktan Seçmeli Test Yükle</h3>
+                    <p>Word belgesinden 25 soruluk test ve analiz ekleyin.</p>
+                    <label class="btn-primary">
+                        Dosya Seç
+                        <input type="file" id="file-test-upload" accept=".docx" hidden>
+                    </label>
+                </div>
+
+                <div class="dash-card view-lists" onclick="showWordLists()">
+                    <h3>Kelime Listeleri (Tarihe Göre)</h3>
+                    <p>Yüklenen kelime listelerine göz atın.</p>
+                </div>
+
+                <div class="dash-card view-tests" onclick="showTests()">
+                    <h3>Test Çözme Merkezi</h3>
+                    <p>Yüklenen testleri çözün ve analizlerini görün.</p>
+                </div>
+
+                <div class="dash-card view-games" onclick="showGames()">
+                    <h3>Oyun & Sınav Merkezi</h3>
+                    <p>Kelimeleri 5 farklı oyunla pekiştirin.</p>
+                </div>
+
+                <div class="dash-card view-grammar" onclick="showGrammarSection()">
+                    <h3>Gramer Bölümü</h3>
+                    <p>Word belgelerinden (.docx) gramer konuları ekleyin ve çalışın.</p>
+                </div>
+
+                <div class="dash-card backup-restore">
+                    <h3>Yedekleme & Aktarma</h3>
+                    <p>Bu dilin verilerini yedekleyin veya başka bir cihazdan aktarın.</p>
+                    <div style="display: flex; gap: 10px; width: 100%;">
+                        <button class="btn-primary" onclick="exportBackup()" style="flex: 1; font-size: 0.85rem; padding: 8px 12px; border-radius: 8px;">Yedekle</button>
+                        <label class="btn-primary" style="flex: 1; font-size: 0.85rem; padding: 8px 12px; text-align: center; cursor: pointer; border-radius: 8px;">
+                            Yükle
+                            <input type="file" id="file-backup-upload" accept=".json" hidden>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 3: Word Lists (By Date) -->
+        <section id="screen-word-dates" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>Kelime Listeleri</h1>
+                <div></div>
+            </header>
+            <div class="content-area">
+                <div id="date-list-container" class="list-container">
+                    <!-- Dates will be injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 4: Words in a Date -->
+        <section id="screen-words" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-word-dates')">⟵ Geri</button>
+                <h1 id="words-date-title">Tarih</h1>
+                <div></div>
+            </header>
+            <div class="content-area with-white-bg">
+                <ul id="words-list" class="words-list">
+                    <!-- Words will be injected here -->
+                </ul>
+            </div>
+        </section>
+
+        <!-- Screen 5: Word Detail -->
+        <section id="screen-word-detail" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-words')">⟵ Geri</button>
+                <h1 id="detail-word-title">Word</h1>
+                <div></div>
+            </header>
+            <div class="content-area detail-area">
+                <div id="word-detail-content">
+                    <!-- Details injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 6: Tests List -->
+        <section id="screen-tests-list" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>Yüklü Testler</h1>
+                <div></div>
+            </header>
+            <div class="content-area">
+                <div id="tests-list-container" class="list-container">
+                    <!-- Tests injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 7: Active Test -->
+        <section id="screen-active-test" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="endTestEarly()">⟵ Testi Bitir</button>
+                <h1 id="test-title">Test</h1>
+                <div id="test-progress">1/25</div>
+            </header>
+            <div class="content-area test-area">
+                <div id="test-question-container" class="question-container">
+                    <!-- Question injected here -->
+                </div>
+                <div id="test-analysis-container" class="analysis-container hidden">
+                    <!-- Analysis injected here after answering -->
+                </div>
+                <div class="test-controls">
+                    <button id="btn-next-question" class="btn-primary" style="display: none;" onclick="nextQuestion()">Sonraki Soru</button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Screen 8: Games Menu -->
+        <section id="screen-games-menu" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>Oyun & Sınav Merkezi</h1>
+                <div></div>
+            </header>
+            <div class="content-area">
+                <div class="dashboard-grid">
+                    <div class="dash-card game-card" onclick="startGame(1)">
+                        <h3>1. Türkçe Anlamı Sor</h3>
+                    </div>
+                    <div class="dash-card game-card" onclick="startGame(2)">
+                        <h3>2. Bağlamdan Kelimeyi Bul</h3>
+                    </div>
+                    <div class="dash-card game-card" onclick="startGame(3)">
+                        <h3>3. Eş/Zıt Anlamı Nedir?</h3>
+                    </div>
+                    <div class="dash-card game-card" onclick="startGame(4)">
+                        <h3>4. Tüm Eş/Zıt Anlamlıları Yaz</h3>
+                    </div>
+                    <div class="dash-card game-card" onclick="startGame(5)">
+                        <h3>5. Listeden Eş/Zıt Anlam Seçmece</h3>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Screen 9: Active Game -->
+        <section id="screen-active-game" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-games-menu')">⟵ Geri</button>
+                <h1 id="game-title">Oyun</h1>
+                <div><span id="game-score">Puan: 0</span></div>
+            </header>
+            <div class="content-area game-area">
+                <div id="game-content-container" class="game-container">
+                    <!-- Game specific UI injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 10: Grammar Topics List -->
+        <section id="screen-grammar-list" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1 id="grammar-lang-title">Gramer Konuları</h1>
+                <div></div>
+            </header>
+            <div class="content-area">
+                <div class="grammar-actions" style="margin-bottom: 25px;">
+                    <label class="btn-primary" style="display: inline-block; cursor: pointer;">
+                        Yeni Gramer Ekle (.docx)
+                        <input type="file" id="file-grammar-upload" accept=".docx" hidden>
+                    </label>
+                </div>
+                <div id="grammar-list-container" class="list-container">
+                    <!-- Grammar topics will be injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 11: Grammar Note Detail & Edit -->
+        <section id="screen-grammar-detail" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-grammar-list')">⟵ Geri</button>
+                <h1 id="grammar-note-title">Gramer Konusu</h1>
+                <div></div>
+            </header>
+            <div class="content-area detail-area">
+                <div class="grammar-detail-card" style="background: white; border-radius: 15px; padding: 30px; box-shadow: var(--shadow); position: relative;">
+                    
+                    <!-- Read Mode Content -->
+                    <div id="grammar-read-mode">
+                        <h2 id="read-note-title" style="margin-bottom: 20px; color: var(--primary-color);">Başlık</h2>
+                        <div id="grammar-detail-html" class="grammar-html-content" style="line-height: 1.6; font-size: 1.1rem; color: #2c3e50;">
+                            <!-- HTML content injected here -->
+                        </div>
+                    </div>
+
+                    <!-- Edit Mode Content (Hidden by default) -->
+                    <div id="grammar-edit-mode" class="hidden">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px;">Konu Başlığı</label>
+                            <input type="text" id="edit-note-title-input" class="game-input" style="width: 100%; text-align: left; max-width: none;" placeholder="Konu başlığı...">
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px;">İçerik (HTML veya Düz Yazı)</label>
+                            <textarea id="edit-note-content-input" style="width: 100%; min-height: 350px; padding: 15px; border-radius: 8px; border: 2px solid #ccc; font-family: monospace; font-size: 1rem; line-height: 1.5; resize: vertical;"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Action Button Group -->
+                    <div class="grammar-detail-actions" style="margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px;">
+                        <!-- Read Mode Buttons -->
+                        <button id="btn-grammar-edit" class="btn-primary" onclick="enableGrammarEditMode()">Düzenle</button>
+                        <button id="btn-grammar-delete" class="btn-primary" style="background: var(--accent);" onclick="deleteGrammarNote()">Sil</button>
+                        
+                        <!-- Edit Mode Buttons -->
+                        <button id="btn-grammar-save" class="btn-primary hidden" style="background: var(--success);" onclick="saveGrammarEdit()">Kaydet</button>
+                        <button id="btn-grammar-cancel" class="btn-primary hidden" style="background: var(--text-light);" onclick="cancelGrammarEdit()">İptal</button>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 12: Add Word (Smart Dictionary) -->
+        <section id="screen-add-word" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>Akıllı Kelime Ekle</h1>
+                <div></div>
+            </header>
+            <div class="content-area detail-area">
+                <div class="add-word-form-container" style="background: white; border-radius: 15px; padding: 25px; box-shadow: var(--shadow); color: #2c3e50;">
+                    <div class="search-box-row" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <input type="text" id="add-word-search-input" placeholder="İngilizce kelime yazın..." style="flex: 1; padding: 12px 15px; border-radius: 8px; border: 2px solid #ddd; font-size: 1rem; font-family: inherit;">
+                        <button class="btn-primary" onclick="searchWordInDictionary()" style="padding: 12px 25px;">Sözlükte Bul</button>
+                    </div>
+                    
+                    <div id="add-word-loading-status" class="hidden" style="text-align: center; margin-bottom: 20px; font-weight: 600; color: #7f8c8d;">
+                        ⏳ Sözlük taranıyor ve çeviriler alınıyor, lütfen bekleyin...
+                    </div>
+                    
+                    <div id="add-word-fields-form" style="display: flex; flex-direction: column; gap: 15px;">
+                        <div class="form-row">
+                            <label for="form-word-name" style="display: block; font-weight: 600; margin-bottom: 5px;">İngilizce Kelime:</label>
+                            <input type="text" id="form-word-name" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; font-size: 1rem;">
+                        </div>
+                        
+                        <div class="form-row">
+                            <label for="form-word-type" style="display: block; font-weight: 600; margin-bottom: 5px;">Türü (Fiil/İsim/Sıfat/Zarf):</label>
+                            <select id="form-word-type" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; font-size: 1rem; background: white;">
+                                <option value="">Belirtilmemiş</option>
+                                <option value="v">v (Fiil)</option>
+                                <option value="n">n (İsim)</option>
+                                <option value="adj">adj (Sıfat)</option>
+                                <option value="adv">adv (Zarf)</option>
+                                <option value="pv">pv (Phrasal Verb)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-row">
+                            <label for="form-word-meaning" style="display: block; font-weight: 600; margin-bottom: 5px;">Genel Anlamı (Türkçe):</label>
+                            <input type="text" id="form-word-meaning" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; font-size: 1rem;">
+                        </div>
+                        
+                        <div class="form-row">
+                            <label for="form-word-context" style="display: block; font-weight: 600; margin-bottom: 5px;">Kullanım Bağlamı:</label>
+                            <textarea id="form-word-context" rows="3" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; font-size: 1rem; resize: vertical;"></textarea>
+                        </div>
+                        
+                        <div class="form-row">
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px;">Örnek Cümleler (Her satıra bir tane):</label>
+                            <textarea id="form-word-examples" rows="4" placeholder="E.g. He is comprehending the logic. (Mantığı kavrıyor.)" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; font-size: 1rem; resize: vertical;"></textarea>
+                        </div>
+                        
+                        <div class="form-row">
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px;">Eş Anlamlıları (Her satıra bir tane):</label>
+                            <textarea id="form-word-synonyms" rows="3" placeholder="1. grasp (kavramak)" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; font-size: 1rem; resize: vertical;"></textarea>
+                        </div>
+                        
+                        <div class="form-row">
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px;">Zıt Anlamlıları (Her satıra bir tane):</label>
+                            <textarea id="form-word-antonyms" rows="3" placeholder="1. misunderstand (yanlış anlamak)" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; font-size: 1rem; resize: vertical;"></textarea>
+                        </div>
+                        
+                        <div class="form-row">
+                            <label for="form-word-date" style="display: block; font-weight: 600; margin-bottom: 5px;">Eklenecek Liste Tarihi:</label>
+                            <select id="form-word-date" onchange="toggleFormNewDate()" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; font-size: 1rem; background: white;">
+                                <!-- Will be populated dynamically -->
+                            </select>
+                            <input type="text" id="form-word-new-date" class="hidden" placeholder="Yeni Tarih Yazın (örn: 22 Haziran 2026 Listesi)" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; margin-top: 8px; font-family: inherit; font-size: 1rem;">
+                        </div>
+                        
+                        <div style="display: flex; gap: 15px; margin-top: 15px;">
+                            <button class="btn-primary" onclick="saveSmartWord()" style="flex: 2; padding: 12px; font-size: 1rem;">Kelimeyi Listeye Kaydet</button>
+                            <button class="btn-primary" onclick="clearSmartWordForm()" style="flex: 1; background: #7f8c8d; padding: 12px; font-size: 1rem;">Temizle</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+    
+    <div class="developer-footer">
+        <img src="gelistirici.png" style="width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-right: 6px; object-fit: cover; border: 1px solid rgba(74, 111, 165, 0.3);">Geliştirici: Dr. Bahadır Murat ÇAKMAKLI
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="hidden">
+        <div class="spinner"></div>
+        <p id="loading-text">İşleniyor...</p>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
