@@ -126,6 +126,19 @@
                 <div></div>
             </header>
 
+            <!-- Spaced Repetition Daily Review Banner -->
+            <div id="spaced-repetition-banner" class="spaced-banner hidden">
+                <div class="spaced-banner-content">
+                    <span class="spaced-banner-icon">🔔</span>
+                    <span id="spaced-banner-text">Bugün tekrar etmeniz gereken kelimeler var!</span>
+                </div>
+                <div class="spaced-banner-actions">
+                    <button id="btn-start-spaced-review" class="btn-spaced-action hidden" onclick="triggerSpacedReview()">1 Günlük Tekrarı Başlat</button>
+                    <button id="btn-start-spaced-test" class="btn-spaced-action hidden" onclick="triggerSpacedTest()">3/6 Günlük Testi Başlat</button>
+                    <button id="btn-start-spaced-weekly" class="btn-spaced-action hidden" onclick="triggerSpacedWeeklyTest()">Haftalık Genel Testi Başlat</button>
+                </div>
+            </div>
+
             <div class="dashboard-grid">
                 <div class="dash-card upload-word">
                     <h3>Kelime Listesi Yükle</h3>
@@ -446,6 +459,56 @@
                             <button class="btn-primary" onclick="clearSmartWordForm()" style="flex: 1; background: #7f8c8d; padding: 12px; font-size: 1rem;">Temizle</button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 13: Spaced Repetition Review (Flashcards) -->
+        <section id="screen-spaced-review" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>Aralıklı Tekrar: Kart Okuma</h1>
+                <div id="spaced-review-progress">1 / 10</div>
+            </header>
+            <div class="content-area review-area">
+                <div class="spaced-card-outer" onclick="flipSpacedCard()">
+                    <div class="spaced-card-inner" id="spaced-card-inner">
+                        <div class="spaced-card-front">
+                            <h2 id="spaced-card-word">Word</h2>
+                            <p id="spaced-card-type">(v)</p>
+                            <span class="tap-hint">Kartı çevirmek için dokunun 👆</span>
+                        </div>
+                        <div class="spaced-card-back">
+                            <h3 id="spaced-card-meaning">Anlamı</h3>
+                            <div id="spaced-card-context-block">
+                                <strong>Bağlam:</strong> <span id="spaced-card-context">Context</span>
+                            </div>
+                            <div id="spaced-card-example-block">
+                                <strong>Örnek:</strong> <span id="spaced-card-example">Example</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="spaced-review-controls">
+                    <button class="btn-primary" id="btn-prev-spaced-card" onclick="prevSpacedCard()">Geri</button>
+                    <button class="btn-primary" id="btn-next-spaced-card" onclick="nextSpacedCard()">İleri / Öğrendim</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 14: Spaced Repetition Test (5-Option Quiz) -->
+        <section id="screen-spaced-test" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="confirmEndSpacedTest()">⟵ Testten Çık</button>
+                <h1 id="spaced-test-title">Aralıklı Tekrar Testi</h1>
+                <div id="spaced-test-progress">1 / 10</div>
+            </header>
+            <div class="content-area test-area">
+                <div id="spaced-test-question-container" class="question-container">
+                    <!-- 5 choice question generated dynamically -->
+                </div>
+                <div class="test-controls">
+                    <button id="btn-next-spaced-question" class="btn-primary" style="display: none;" onclick="nextSpacedQuestion()">Sonraki Soru</button>
                 </div>
             </div>
         </section>

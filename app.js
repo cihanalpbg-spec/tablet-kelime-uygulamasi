@@ -92,11 +92,15 @@ async function selectLanguage(lang) {
         if (!appData.words) appData.words = {};
         if (!appData.tests) appData.tests = [];
         if (!appData.grammar) appData.grammar = [];
+        if (!appData.spacedStatus) appData.spacedStatus = {};
     } catch (e) {
         console.error(e);
         appData = { words: {}, tests: [], grammar: [] };
     }
     hideLoading();
+    
+    // Check for Spaced Repetition reviews
+    checkDailyReviews();
     
     showScreen('screen-dashboard');
 }
@@ -1720,4 +1724,380 @@ function handleBackupUpload(e) {
     };
     reader.readAsText(file);
     e.target.value = '';
+}
+
+// --- SPACED REPETITION (ARALIKLI TEKRAR) ENGINE ---
+let spacedReviewWords = [];
+let spacedReviewIndex = 0;
+let spacedTestWords = [];
+let spacedTestIndex = 0;
+let spacedTestAnswers = {};
+let spacedTestQuestionMode = '';
+let spacedDistractorsPool = [];
+let spacedWeeklyWordsPool = [];
+
+const turkishMonths = {
+    'ocak': 0, 'şubat': 1, 'mart': 2, 'nisan': 3, 'mayıs': 4, 'haziran': 5,
+    'temmuz': 6, 'ağustos': 7, 'eylül': 8, 'ekim': 9, 'kasım': 10, 'aralık': 11
+};
+
+function parseListNameToDate(listName) {
+    const parts = listName.split(' ');
+    if (parts.length >= 3) {
+        const day = parseInt(parts[0], 10);
+        const monthName = parts[1].toLowerCase();
+        const year = parseInt(parts[2], 10);
+        const month = turkishMonths[monthName];
+        if (!isNaN(day) && month !== undefined && !isNaN(year)) {
+            return new Date(year, month, day);
+        }
+    }
+    return null;
+}
+
+function checkDailyReviews() {
+    const banner = document.getElementById('spaced-repetition-banner');
+    const bannerText = document.getElementById('spaced-banner-text');
+    const btnReview = document.getElementById('btn-start-spaced-review');
+    const btnTest = document.getElementById('btn-start-spaced-test');
+    const btnWeekly = document.getElementById('btn-start-spaced-weekly');
+    
+    if (!banner) return;
+    
+    banner.classList.add('hidden');
+    btnReview.classList.add('hidden');
+    btnTest.classList.add('hidden');
+    btnWeekly.classList.add('hidden');
+    
+    spacedReviewWords = [];
+    spacedTestWords = [];
+    let weeklyWords = [];
+    
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+    
+    let hasAlert = false;
+    let hasWeeklyAlert = false;
+    
+    // Normalize spacedStatus
+    if (!appData.spacedStatus) appData.spacedStatus = {};
+    
+    // Build distractor pool
+    spacedDistractorsPool = [];
+    Object.values(appData.words).forEach(list => {
+        list.forEach(w => {
+            if (w.meaning) {
+                spacedDistractorsPool.push(w.meaning);
+            }
+        });
+    });
+    spacedDistractorsPool = [...new Set(spacedDistractorsPool)];
+    
+    Object.keys(appData.words).forEach(listName => {
+        const listDate = parseListNameToDate(listName);
+        if (!listDate) return;
+        
+        listDate.setHours(0, 0, 0, 0);
+        const diffTime = currentDate - listDate;
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        
+        const words = appData.words[listName];
+        if (!words || words.length === 0) return;
+        
+        const status = appData.spacedStatus[listName] || {};
+        
+        if (diffDays === 1) {
+            if (!status.review1) {
+                spacedReviewWords = spacedReviewWords.concat(words);
+                hasAlert = true;
+            }
+        } 
+        else if (diffDays === 3) {
+            if (!status.test3) {
+                spacedTestWords = spacedTestWords.concat(words);
+                hasAlert = true;
+            }
+        }
+        else if (diffDays === 6) {
+            if (!status.test6) {
+                spacedTestWords = spacedTestWords.concat(words);
+                hasAlert = true;
+            }
+        }
+        
+        if (diffDays >= 1 && diffDays <= 7) {
+            weeklyWords = weeklyWords.concat(words);
+        }
+        
+        if (diffDays === 7) {
+            if (!status.test7) {
+                hasWeeklyAlert = true;
+            }
+        }
+    });
+    
+    if (hasAlert || (hasWeeklyAlert && weeklyWords.length > 0)) {
+        banner.classList.remove('hidden');
+        let statusTexts = [];
+        
+        if (spacedReviewWords.length > 0) {
+            btnReview.classList.remove('hidden');
+            statusTexts.push(`1 Günlük Tekrar (${spacedReviewWords.length} kelime)`);
+        }
+        if (spacedTestWords.length > 0) {
+            btnTest.classList.remove('hidden');
+            statusTexts.push(`3/6 Günlük Test (${spacedTestWords.length} kelime)`);
+        }
+        if (hasWeeklyAlert && weeklyWords.length > 0) {
+            btnWeekly.classList.remove('hidden');
+            spacedWeeklyWordsPool = weeklyWords;
+            statusTexts.push(`Haftalık Genel Test (${weeklyWords.length} kelime)`);
+        }
+        
+        if (statusTexts.length > 0) {
+            bannerText.innerText = "Bugün aralıklı tekrar programınızda kelimeler var: " + statusTexts.join(" | ");
+        } else {
+            banner.classList.add('hidden');
+        }
+    }
+}
+
+function triggerSpacedReview() {
+    if (spacedReviewWords.length === 0) return;
+    spacedReviewIndex = 0;
+    showSpacedCard();
+    showScreen('screen-spaced-review');
+}
+
+function showSpacedCard() {
+    const w = spacedReviewWords[spacedReviewIndex];
+    document.getElementById('spaced-review-progress').innerText = `${spacedReviewIndex + 1} / ${spacedReviewWords.length}`;
+    
+    document.getElementById('spaced-card-word').innerText = w.word;
+    document.getElementById('spaced-card-type').innerText = w.type ? `(${w.type})` : '';
+    document.getElementById('spaced-card-meaning').innerText = w.meaning;
+    
+    const contextBlock = document.getElementById('spaced-card-context-block');
+    const contextText = document.getElementById('spaced-card-context');
+    if (w.context) {
+        contextBlock.classList.remove('hidden');
+        contextText.innerText = w.context;
+    } else {
+        contextBlock.classList.add('hidden');
+    }
+    
+    const exampleBlock = document.getElementById('spaced-card-example-block');
+    const exampleText = document.getElementById('spaced-card-example');
+    if (w.examples && w.examples.length > 0) {
+        exampleBlock.classList.remove('hidden');
+        exampleText.innerText = w.examples[0];
+    } else {
+        exampleBlock.classList.add('hidden');
+    }
+    
+    document.getElementById('spaced-card-inner').classList.remove('flipped');
+}
+
+function flipSpacedCard() {
+    document.getElementById('spaced-card-inner').classList.toggle('flipped');
+}
+
+function nextSpacedCard() {
+    if (spacedReviewIndex < spacedReviewWords.length - 1) {
+        spacedReviewIndex++;
+        showSpacedCard();
+    } else {
+        // Mark completion
+        if (!appData.spacedStatus) appData.spacedStatus = {};
+        Object.keys(appData.words).forEach(listName => {
+            const listDate = parseListNameToDate(listName);
+            if (!listDate) return;
+            listDate.setHours(0, 0, 0, 0);
+            const currentDate = new Date();
+            currentDate.setHours(0, 0, 0, 0);
+            const diffTime = currentDate - listDate;
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+            if (diffDays === 1) {
+                if (!appData.spacedStatus[listName]) appData.spacedStatus[listName] = {};
+                appData.spacedStatus[listName].review1 = true;
+            }
+        });
+        
+        Swal.fire({
+            title: "Tekrar Tamamlandı! 🎉",
+            text: "1 günlük kelime okuma tekrarınızı başarıyla bitirdiniz.",
+            icon: "success",
+            confirmButtonColor: themes[currentLang].primary
+        }).then(async () => {
+            showLoading("Kaydediliyor...");
+            await saveData();
+            hideLoading();
+            goBack('screen-dashboard');
+            checkDailyReviews();
+        });
+    }
+}
+
+function prevSpacedCard() {
+    if (spacedReviewIndex > 0) {
+        spacedReviewIndex--;
+        showSpacedCard();
+    }
+}
+
+// Tablet and Desktop both use standard IDs.
+function triggerSpacedTest() {
+    if (spacedTestWords.length === 0) return;
+    spacedTestIndex = 0;
+    spacedTestAnswers = {};
+    spacedTestQuestionMode = 'daily';
+    document.getElementById('spaced-test-title').innerText = "3/6 Günlük Aralıklı Tekrar Testi";
+    
+    renderSpacedQuestion();
+    showScreen('screen-spaced-test');
+}
+
+function triggerSpacedWeeklyTest() {
+    if (!spacedWeeklyWordsPool || spacedWeeklyWordsPool.length === 0) return;
+    spacedTestWords = spacedWeeklyWordsPool;
+    spacedTestIndex = 0;
+    spacedTestAnswers = {};
+    spacedTestQuestionMode = 'weekly';
+    document.getElementById('spaced-test-title').innerText = "Haftalık Genel Tekrar Sınavı";
+    
+    renderSpacedQuestion();
+    showScreen('screen-spaced-test');
+}
+
+function generateFiveOptions(correctMeaning) {
+    let pool = spacedDistractorsPool.filter(m => m !== correctMeaning);
+    pool.sort(() => Math.random() - 0.5);
+    
+    let options = pool.slice(0, 4);
+    options.push(correctMeaning);
+    options.sort(() => Math.random() - 0.5);
+    
+    while (options.length < 5) {
+        options.push("Tanımsız Şık " + (options.length + 1));
+    }
+    return options;
+}
+
+function renderSpacedQuestion() {
+    const w = spacedTestWords[spacedTestIndex];
+    document.getElementById('spaced-test-progress').innerText = `${spacedTestIndex + 1} / ${spacedTestWords.length}`;
+    
+    const container = document.getElementById('spaced-test-question-container');
+    const nextBtn = document.getElementById('btn-next-spaced-question');
+    nextBtn.style.display = 'none';
+    
+    const options = generateFiveOptions(w.meaning);
+    
+    let html = `
+        <div class="question-text">"${w.word}" kelimesinin Türkçe anlamı nedir?</div>
+        <div class="options-list">
+    `;
+    
+    options.forEach((opt, idx) => {
+        const letters = ['A', 'B', 'C', 'D', 'E'];
+        html += `<div class="option-btn" onclick="selectSpacedOption('${opt.replace(/'/g, "\\'")}', this)">${letters[idx]}) ${opt}</div>`;
+    });
+    html += `</div>`;
+    
+    container.innerHTML = html;
+}
+
+function selectSpacedOption(selectedVal, element) {
+    const options = document.querySelectorAll('#spaced-test-question-container .option-btn');
+    options.forEach(opt => opt.classList.add('disabled'));
+    
+    const w = spacedTestWords[spacedTestIndex];
+    const correctVal = w.meaning;
+    
+    if (selectedVal === correctVal) {
+        element.classList.add('correct');
+    } else {
+        element.classList.add('wrong');
+        options.forEach(opt => {
+            if (opt.innerText.slice(3).trim() === correctVal) {
+                opt.classList.add('correct');
+            }
+        });
+    }
+    
+    spacedTestAnswers[spacedTestIndex] = (selectedVal === correctVal);
+    
+    const nextBtn = document.getElementById('btn-next-spaced-question');
+    nextBtn.style.display = 'inline-block';
+    
+    if (spacedTestIndex === spacedTestWords.length - 1) {
+        nextBtn.innerText = "Sınavı Bitir";
+    } else {
+        nextBtn.innerText = "Sonraki Soru";
+    }
+}
+
+function nextSpacedQuestion() {
+    if (spacedTestIndex < spacedTestWords.length - 1) {
+        spacedTestIndex++;
+        renderSpacedQuestion();
+    } else {
+        let correctCount = 0;
+        Object.values(spacedTestAnswers).forEach(isCorrect => {
+            if (isCorrect) correctCount++;
+        });
+        
+        // Mark completion
+        if (!appData.spacedStatus) appData.spacedStatus = {};
+        Object.keys(appData.words).forEach(listName => {
+            const listDate = parseListNameToDate(listName);
+            if (!listDate) return;
+            listDate.setHours(0, 0, 0, 0);
+            const currentDate = new Date();
+            currentDate.setHours(0, 0, 0, 0);
+            const diffTime = currentDate - listDate;
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (spacedTestQuestionMode === 'daily') {
+                if (diffDays === 3 || diffDays === 6) {
+                    if (!appData.spacedStatus[listName]) appData.spacedStatus[listName] = {};
+                    if (diffDays === 3) appData.spacedStatus[listName].test3 = true;
+                    if (diffDays === 6) appData.spacedStatus[listName].test6 = true;
+                }
+            } else if (spacedTestQuestionMode === 'weekly') {
+                if (diffDays === 7) {
+                    if (!appData.spacedStatus[listName]) appData.spacedStatus[listName] = {};
+                    appData.spacedStatus[listName].test7 = true;
+                }
+            }
+        });
+        
+        Swal.fire({
+            title: "Tebrikler! Sınav Bitti 🏆",
+            text: `Doğru Sayısı: ${correctCount} / ${spacedTestWords.length}`,
+            icon: "success",
+            confirmButtonColor: themes[currentLang].primary
+        }).then(async () => {
+            showLoading("Kaydediliyor...");
+            await saveData();
+            hideLoading();
+            goBack('screen-dashboard');
+            checkDailyReviews();
+        });
+    }
+}
+
+function confirmEndSpacedTest() {
+    Swal.fire({
+        title: "Sınavdan çıkmak istiyor musunuz?",
+        text: "İlerlemeniz kaydedilmeyecektir.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Evet, Çık",
+        cancelButtonText: "İptal"
+    }).then((result) => {
+        if(result.isConfirmed) {
+            goBack('screen-dashboard');
+        }
+    });
 }
