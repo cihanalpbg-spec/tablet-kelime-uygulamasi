@@ -441,6 +441,7 @@ async function searchWordInDictionary() {
             } else {
                 // Fallback chain of multiple public CORS proxies to ensure connectivity
                 const proxies = [
+                    url => `/api/proxy?url=${encodeURIComponent(url)}`, // Vercel Serverless Proxy (first choice when deployed)
                     url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
                     url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
                     url => `https://thingproxy.freeboard.io/fetch/${url}`
