@@ -47,19 +47,70 @@
                     
                     <div class="language-grid">
                         <div class="lang-card english" onclick="selectLanguage('english')">
-                            <div class="lang-icon">🇬🇧</div>
+                            <div class="lang-icon">
+                                <svg viewBox="0 0 100 100" width="80" height="80">
+                                    <clipPath id="circle-clip-uk">
+                                        <circle cx="50" cy="50" r="50" />
+                                    </clipPath>
+                                    <g clip-path="url(#circle-clip-uk)">
+                                        <rect width="100" height="100" fill="#012169"/>
+                                        <line x1="0" y1="0" x2="100" y2="100" stroke="#ffffff" stroke-width="12"/>
+                                        <line x1="100" y1="0" x2="0" y2="100" stroke="#ffffff" stroke-width="12"/>
+                                        <line x1="0" y1="0" x2="100" y2="100" stroke="#C8102E" stroke-width="6"/>
+                                        <line x1="100" y1="0" x2="0" y2="100" stroke="#C8102E" stroke-width="6"/>
+                                        <line x1="50" y1="0" x2="50" y2="100" stroke="#ffffff" stroke-width="20"/>
+                                        <line x1="0" y1="50" x2="100" y2="50" stroke="#ffffff" stroke-width="20"/>
+                                        <line x1="50" y1="0" x2="50" y2="100" stroke="#C8102E" stroke-width="12"/>
+                                        <line x1="0" y1="50" x2="100" y2="50" stroke="#C8102E" stroke-width="12"/>
+                                    </g>
+                                </svg>
+                            </div>
                             <h2>İngilizce</h2>
                         </div>
                         <div class="lang-card spanish" onclick="selectLanguage('spanish')">
-                            <div class="lang-icon">🇪🇸</div>
+                            <div class="lang-icon">
+                                <svg viewBox="0 0 100 100" width="80" height="80">
+                                    <clipPath id="circle-clip-es">
+                                        <circle cx="50" cy="50" r="50" />
+                                    </clipPath>
+                                    <g clip-path="url(#circle-clip-es)">
+                                        <rect x="0" y="0" width="100" height="25" fill="#c60b1e"/>
+                                        <rect x="0" y="25" width="100" height="50" fill="#fbe122"/>
+                                        <rect x="0" y="75" width="100" height="25" fill="#c60b1e"/>
+                                        <circle cx="35" cy="50" r="8" fill="#c60b1e" opacity="0.9"/>
+                                    </g>
+                                </svg>
+                            </div>
                             <h2>İspanyolca</h2>
                         </div>
                         <div class="lang-card italian" onclick="selectLanguage('italian')">
-                            <div class="lang-icon">🇮🇹</div>
+                            <div class="lang-icon">
+                                <svg viewBox="0 0 100 100" width="80" height="80">
+                                    <clipPath id="circle-clip-it">
+                                        <circle cx="50" cy="50" r="50" />
+                                    </clipPath>
+                                    <g clip-path="url(#circle-clip-it)">
+                                        <rect x="0" y="0" width="33.3" height="100" fill="#009246"/>
+                                        <rect x="33.3" y="0" width="33.4" height="100" fill="#ffffff"/>
+                                        <rect x="66.7" y="0" width="33.3" height="100" fill="#ce2b37"/>
+                                    </g>
+                                </svg>
+                            </div>
                             <h2>İtalyanca</h2>
                         </div>
                         <div class="lang-card russian" onclick="selectLanguage('russian')">
-                            <div class="lang-icon">🇷🇺</div>
+                            <div class="lang-icon">
+                                <svg viewBox="0 0 100 100" width="80" height="80">
+                                    <clipPath id="circle-clip-ru">
+                                        <circle cx="50" cy="50" r="50" />
+                                    </clipPath>
+                                    <g clip-path="url(#circle-clip-ru)">
+                                        <rect x="0" y="0" width="100" height="33.3" fill="#ffffff"/>
+                                        <rect x="0" y="33.3" width="100" height="33.4" fill="#0039a6"/>
+                                        <rect x="0" y="66.7" width="100" height="33.3" fill="#d52b1e"/>
+                                    </g>
+                                </svg>
+                            </div>
                             <h2>Rusça</h2>
                         </div>
                     </div>
@@ -375,6 +426,11 @@
                         <div class="form-row">
                             <label style="display: block; font-weight: 600; margin-bottom: 5px;">Zıt Anlamlıları (Her satıra bir tane):</label>
                             <textarea id="form-word-antonyms" rows="3" placeholder="1. misunderstand (yanlış anlamak)" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; font-size: 1rem; resize: vertical;"></textarea>
+                        </div>
+                        
+                        <div class="form-row">
+                            <label style="display: block; font-weight: 600; margin-bottom: 5px;">İlgili Terimler / Edat Kullanımı (Her satıra bir tane):</label>
+                            <textarea id="form-word-preps" rows="3" placeholder="örn: admit defeat (mağlubiyeti kabul etmek)" style="width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-family: inherit; font-size: 1rem; resize: vertical;"></textarea>
                         </div>
                         
                         <div class="form-row">

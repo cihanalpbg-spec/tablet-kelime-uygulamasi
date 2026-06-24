@@ -119,6 +119,21 @@ h1, h2, h3, h4 {
 .lang-icon {
     font-size: 4rem;
     margin-bottom: 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.lang-icon svg {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08);
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    border: 2px solid rgba(255,255,255,0.8);
+}
+.lang-card:hover .lang-icon svg {
+    transform: scale(1.1) rotate(2deg);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.18), 0 4px 8px rgba(0,0,0,0.12);
 }
 
 /* Top Bar */

@@ -386,6 +386,9 @@ function clearSmartWordForm() {
     document.getElementById('form-word-examples').value = '';
     document.getElementById('form-word-synonyms').value = '';
     document.getElementById('form-word-antonyms').value = '';
+    if (document.getElementById('form-word-preps')) {
+        document.getElementById('form-word-preps').value = '';
+    }
     document.getElementById('form-word-new-date').value = '';
     document.getElementById('add-word-loading-status').classList.add('hidden');
 }
@@ -407,14 +410,19 @@ async function searchWordInDictionary() {
     document.getElementById('form-word-examples').value = '';
     document.getElementById('form-word-synonyms').value = '';
     document.getElementById('form-word-antonyms').value = '';
+    if (document.getElementById('form-word-preps')) {
+        document.getElementById('form-word-preps').value = '';
+    }
     
     try {
+        // 1. Fetch from Dictionary API
         const dictRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(searchInput)}`);
         let dictData = null;
         if (dictRes.ok) {
             dictData = await dictRes.json();
         }
         
+        // 2. Fetch Translation fallback
         const transRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(searchInput)}`);
         let trWord = searchInput;
         if (transRes.ok) {
@@ -424,106 +432,331 @@ async function searchWordInDictionary() {
             }
         }
         
-        document.getElementById('form-word-meaning').value = trWord;
+        // 3. Fetch and parse Sesli Sözlük
+        let sesliHtml = null;
+        const sesliUrl = `https://www.seslisozluk.net/${encodeURIComponent(searchInput)}-nedir-ne-demek/`;
+        try {
+            if (window.pywebview && window.pywebview.api && window.pywebview.api.fetch_url) {
+                sesliHtml = await window.pywebview.api.fetch_url(sesliUrl);
+            } else {
+                // Fallback chain of multiple public CORS proxies to ensure connectivity
+                const proxies = [
+                    url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+                    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+                    url => `https://thingproxy.freeboard.io/fetch/${url}`
+                ];
+                
+                for (let getProxyUrl of proxies) {
+                    try {
+                        const proxyUrl = getProxyUrl(sesliUrl);
+                        const proxyRes = await fetch(proxyUrl);
+                        if (proxyRes.ok) {
+                            if (proxyUrl.includes('allorigins.win')) {
+                                const proxyData = await proxyRes.json();
+                                sesliHtml = proxyData.contents;
+                            } else {
+                                sesliHtml = await proxyRes.text();
+                            }
+                            // Verify that we received actual Sesli Sözlük HTML contents
+                            if (sesliHtml && sesliHtml.includes('seslisozluk')) {
+                                break;
+                            }
+                        }
+                    } catch (err) {
+                        console.warn("Proxy failed, trying next...", err);
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Sesli Sozluk fetch error:", e);
+        }
+
+        let sesliMeanings = [];
+        let sesliSynonyms = [];
+        let sesliAntonyms = [];
+        let sesliRelated = [];
+        let sesliExamples = [];
+        
+        if (sesliHtml) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(sesliHtml, 'text/html');
+            
+            // Robust language matching term detection (immune to casing/accent mismatches)
+            const langSearchMap = {
+                english: ['ing', 'eng'],
+                spanish: ['isp', 'span', 'esp'],
+                italian: ['ital'],
+                russian: ['rus']
+            };
+            const searchTerms = langSearchMap[currentLang] || ['eng'];
+            
+            let targetPanelHeader = Array.from(doc.querySelectorAll('.panel-heading'))
+                .find(el => {
+                    const text = (el.textContent || '').toLowerCase();
+                    return searchTerms.some(term => text.includes(term));
+                });
+            
+            let panel = null;
+            if (targetPanelHeader) {
+                panel = targetPanelHeader.closest('.panel');
+            }
+            
+            // Fallback: If no panel heading matches the target language, take the first panel that contains dd.ordered-list
+            if (!panel) {
+                const allPanels = doc.querySelectorAll('.panel');
+                for (let p of allPanels) {
+                    if (p.querySelector('dd.ordered-list')) {
+                        panel = p;
+                        break;
+                    }
+                }
+            }
+
+            if (panel) {
+                const dds = panel.querySelectorAll('dd.ordered-list');
+                dds.forEach(dd => {
+                    // Extract human example sentences
+                    const examplePs = dd.querySelectorAll('p');
+                    examplePs.forEach(p => {
+                        const qTr = p.querySelector('q[lang="tr"]');
+                        const qEn = p.querySelector('q[lang="en"]');
+                        if (qTr && qEn) {
+                            const enText = qEn.textContent.trim();
+                            const trText = qTr.textContent.trim();
+                            if (enText && trText) {
+                                sesliExamples.push(`${enText} (${trText})`);
+                            }
+                        } else {
+                            const text = p.textContent.trim();
+                            if (text && text.includes(' - ')) {
+                                sesliExamples.push(text);
+                            }
+                        }
+                    });
+                    
+                    // Clean meanings
+                    const ddClone = dd.cloneNode(true);
+                    ddClone.querySelectorAll('p').forEach(p => p.remove());
+                    let cleanMeaning = ddClone.textContent.trim().replace(/\s+/g, ' ');
+                    
+                    // Clean up type indicators and inline example notes
+                    cleanMeaning = cleanMeaning.replace(/\{[^}]+\}/g, '').trim();
+                    cleanMeaning = cleanMeaning.replace(/^\([^)]+\)/g, '').trim();
+                    if (cleanMeaning.includes(':')) {
+                        cleanMeaning = cleanMeaning.split(':')[0].trim();
+                    }
+                    
+                    if (cleanMeaning) {
+                        const individualMeanings = cleanMeaning.split(/[;,]/)
+                            .map(m => m.trim())
+                            .filter(m => m.length > 0);
+                        sesliMeanings.push(...individualMeanings);
+                    }
+                });
+            }
+            
+            // Synonyms
+            const synDiv = doc.getElementById('synonyms');
+            if (synDiv) {
+                synDiv.querySelectorAll('a').forEach(a => {
+                    const val = a.textContent.trim();
+                    if (val) sesliSynonyms.push(val);
+                });
+            }
+            
+            // Antonyms
+            const antDiv = doc.getElementById('antonyms');
+            if (antDiv) {
+                antDiv.querySelectorAll('a').forEach(a => {
+                    const val = a.textContent.trim();
+                    if (val) sesliAntonyms.push(val);
+                });
+            }
+            
+            // Related Terms: Query dt.similar from the panel first, fallback to the entire document if empty
+            let dtElements = panel ? panel.querySelectorAll('dt.similar') : [];
+            if (dtElements.length === 0) {
+                dtElements = doc.querySelectorAll('dt.similar');
+            }
+            
+            dtElements.forEach(dt => {
+                const term = dt.textContent.trim().replace(/\s+/g, ' ');
+                
+                // Scan forward to find the next element sibling that is a DD (skips proxy/ad-injected helper tags or scripts)
+                let sibling = dt.nextElementSibling;
+                while (sibling && sibling.tagName.toUpperCase() !== 'DT' && sibling.tagName.toUpperCase() !== 'DD') {
+                    sibling = sibling.nextElementSibling;
+                }
+                
+                if (sibling && sibling.tagName.toUpperCase() === 'DD') {
+                    const def = sibling.textContent.trim().replace(/\s+/g, ' ');
+                    if (term && def) {
+                        const hasTrLink = sibling.querySelector('a[lang="tr"]');
+                        // Filter: accept if it is inside the target panel, or contains Turkish characters / non-English text
+                        if (panel && panel.contains(dt)) {
+                            sesliRelated.push(`${term}: ${def}`);
+                        } else if (hasTrLink || /[ıışğüçİŞĞÜÇ]/.test(def) || !/^[a-zA-Z\s.,()'-]+$/.test(def)) {
+                            sesliRelated.push(`${term}: ${def}`);
+                        }
+                    }
+                }
+            });
+        }
+
+        // 4. Parse & Combine Dictionary API data
+        let dictSynonyms = [];
+        let dictAntonyms = [];
+        let dictExamples = [];
+        let dictType = '';
+        let dictDefinition = '';
         
         if (dictData && dictData[0]) {
             const entry = dictData[0];
-            
             if (entry.meanings && entry.meanings.length > 0) {
                 const pos = entry.meanings[0].partOfSpeech;
-                let mappedType = '';
-                if (pos.startsWith('verb')) mappedType = 'v';
-                else if (pos.startsWith('noun')) mappedType = 'n';
-                else if (pos.startsWith('adj')) mappedType = 'adj';
-                else if (pos.startsWith('adv')) mappedType = 'adv';
-                document.getElementById('form-word-type').value = mappedType;
+                if (pos.startsWith('verb')) dictType = 'v';
+                else if (pos.startsWith('noun')) dictType = 'n';
+                else if (pos.startsWith('adj')) dictType = 'adj';
+                else if (pos.startsWith('adv')) dictType = 'adv';
                 
-                const definition = entry.meanings[0].definitions[0].definition;
-                const defTransRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(definition)}`);
-                let trDef = definition;
+                if (entry.meanings[0].definitions && entry.meanings[0].definitions[0]) {
+                    dictDefinition = entry.meanings[0].definitions[0].definition;
+                }
+                
+                for (let m of entry.meanings) {
+                    if (m.synonyms && m.synonyms.length > 0) {
+                        dictSynonyms = dictSynonyms.concat(m.synonyms);
+                    }
+                    if (m.antonyms && m.antonyms.length > 0) {
+                        dictAntonyms = dictAntonyms.concat(m.antonyms);
+                    }
+                    for (let d of m.definitions) {
+                        if (d.example) {
+                            dictExamples.push(d.example);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Set Word Type
+        let finalType = dictType;
+        if (!finalType && sesliHtml) {
+            const fullText = sesliHtml.toLowerCase();
+            if (fullText.includes('{f}')) finalType = 'v';
+            else if (fullText.includes('{i}')) finalType = 'n';
+            else if (fullText.includes('{s}')) finalType = 'adj';
+            else if (fullText.includes('{zf}')) finalType = 'adv';
+        }
+        document.getElementById('form-word-type').value = finalType;
+
+        // Set Word Meaning (ensuring clean definitions and at least 3 if possible)
+        let cleanMeanings = sesliMeanings.map(m => m.replace(/^\d+[\.\}]?\s*/, '').trim());
+        cleanMeanings = [...new Set(cleanMeanings)].filter(m => m.length > 0);
+        
+        // If we don't have enough meanings, add the Google Translate result
+        if (cleanMeanings.length < 3 && trWord) {
+            if (!cleanMeanings.some(m => m.toLowerCase() === trWord.toLowerCase())) {
+                cleanMeanings.push(trWord);
+            }
+        }
+        
+        let finalMeaningText = '';
+        if (cleanMeanings.length > 0) {
+            finalMeaningText = cleanMeanings.slice(0, 6).join(', ');
+        } else {
+            finalMeaningText = trWord;
+        }
+        document.getElementById('form-word-meaning').value = finalMeaningText;
+
+        // Set Word Context
+        let contextVal = '';
+        if (dictDefinition) {
+            let trDef = '';
+            try {
+                const defTransRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(dictDefinition)}`);
                 if (defTransRes.ok) {
                     const defTransData = await defTransRes.json();
                     if (defTransData && defTransData[0] && defTransData[0][0]) {
                         trDef = defTransData[0][0][0];
                     }
                 }
-                document.getElementById('form-word-context').value = `${definition} (${trDef})`;
+            } catch (err) { console.error(err); }
+            contextVal = `${dictDefinition} (${trDef})`;
+        } else {
+            contextVal = "Çeviri yapıldı.";
+        }
+        document.getElementById('form-word-context').value = contextVal;
+
+        // Set Example Sentences (exactly 5)
+        let finalExamples = [...sesliExamples];
+        if (finalExamples.length < 5) {
+            const cleanDictExs = [...new Set(dictExamples)].filter(ex => ex.trim().length > 0);
+            for (let ex of cleanDictExs) {
+                if (finalExamples.length >= 5) break;
+                const isDup = finalExamples.some(fe => fe.toLowerCase().includes(ex.toLowerCase()) || ex.toLowerCase().includes(fe.split('(')[0].trim().toLowerCase()));
+                if (isDup) continue;
                 
-                let examplesText = [];
-                for (let m of entry.meanings) {
-                    for (let d of m.definitions) {
-                        if (d.example) {
-                            examplesText.push(d.example);
-                        }
-                        if (examplesText.length >= 3) break;
-                    }
-                    if (examplesText.length >= 3) break;
-                }
-                
-                let formattedExamples = [];
-                for (let ex of examplesText) {
+                let trEx = '';
+                try {
                     const exTransRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(ex)}`);
-                    let trEx = '';
                     if (exTransRes.ok) {
                         const exTransData = await exTransRes.json();
                         if (exTransData && exTransData[0] && exTransData[0][0]) {
                             trEx = exTransData[0][0][0];
                         }
                     }
-                    formattedExamples.push(`${ex} (${trEx})`);
-                }
-                document.getElementById('form-word-examples').value = formattedExamples.join('\n');
-                
-                let synonyms = [];
-                for (let m of entry.meanings) {
-                    if (m.synonyms && m.synonyms.length > 0) {
-                        synonyms = synonyms.concat(m.synonyms);
-                    }
-                }
-                synonyms = [...new Set(synonyms)].slice(0, 4);
-                
-                let formattedSyns = [];
-                for (let i = 0; i < synonyms.length; i++) {
-                    const syn = synonyms[i];
-                    const synTransRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(syn)}`);
-                    let trSyn = syn;
-                    if (synTransRes.ok) {
-                        const synTransData = await synTransRes.json();
-                        if (synTransData && synTransData[0] && synTransData[0][0]) {
-                            trSyn = synTransData[0][0][0];
-                        }
-                    }
-                    formattedSyns.push(`${i+1}. ${syn} (${trSyn})`);
-                }
-                document.getElementById('form-word-synonyms').value = formattedSyns.join('\n');
-                
-                let antonyms = [];
-                for (let m of entry.meanings) {
-                    if (m.antonyms && m.antonyms.length > 0) {
-                        antonyms = antonyms.concat(m.antonyms);
-                    }
-                }
-                antonyms = [...new Set(antonyms)].slice(0, 4);
-                
-                let formattedAnts = [];
-                for (let i = 0; i < antonyms.length; i++) {
-                    const ant = antonyms[i];
-                    const antTransRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(ant)}`);
-                    let trAnt = ant;
-                    if (antTransRes.ok) {
-                        const antTransData = await antTransRes.json();
-                        if (antTransData && antTransData[0] && antTransData[0][0]) {
-                            trAnt = antTransData[0][0][0];
-                        }
-                    }
-                    formattedAnts.push(`${i+1}. ${ant} (${trAnt})`);
-                }
-                document.getElementById('form-word-antonyms').value = formattedAnts.join('\n');
+                } catch (err) { console.error(err); }
+                finalExamples.push(`${ex} (${trEx})`);
             }
-        } else {
-            document.getElementById('form-word-context').value = "Sözlük tanımı bulunamadı, sadece çeviri yapıldı.";
         }
-        
+        document.getElementById('form-word-examples').value = finalExamples.slice(0, 5).join('\n');
+
+        // Set Synonyms (up to 4, translated)
+        let rawSyns = sesliSynonyms.length > 0 ? sesliSynonyms : dictSynonyms;
+        rawSyns = [...new Set(rawSyns)].slice(0, 4);
+        let formattedSyns = [];
+        for (let i = 0; i < rawSyns.length; i++) {
+            const syn = rawSyns[i];
+            let trSyn = syn;
+            try {
+                const synTransRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(syn)}`);
+                if (synTransRes.ok) {
+                    const synTransData = await synTransRes.json();
+                    if (synTransData && synTransData[0] && synTransData[0][0]) {
+                        trSyn = synTransData[0][0][0];
+                    }
+                }
+            } catch (err) { console.error(err); }
+            formattedSyns.push(`${i+1}. ${syn} (${trSyn})`);
+        }
+        document.getElementById('form-word-synonyms').value = formattedSyns.join('\n');
+
+        // Set Antonyms (up to 4, translated)
+        let rawAnts = sesliAntonyms.length > 0 ? sesliAntonyms : dictAntonyms;
+        rawAnts = [...new Set(rawAnts)].slice(0, 4);
+        let formattedAnts = [];
+        for (let i = 0; i < rawAnts.length; i++) {
+            const ant = rawAnts[i];
+            let trAnt = ant;
+            try {
+                const antTransRes = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=tr&dt=t&q=${encodeURIComponent(ant)}`);
+                if (antTransRes.ok) {
+                    const antTransData = await antTransRes.json();
+                    if (antTransData && antTransData[0] && antTransData[0][0]) {
+                        trAnt = antTransData[0][0][0];
+                    }
+                }
+            } catch (err) { console.error(err); }
+            formattedAnts.push(`${i+1}. ${ant} (${trAnt})`);
+        }
+        document.getElementById('form-word-antonyms').value = formattedAnts.join('\n');
+
+        // Set Related Terms
+        if (document.getElementById('form-word-preps')) {
+            document.getElementById('form-word-preps').value = sesliRelated.slice(0, 8).join('\n');
+        }
+
     } catch (e) {
         console.error("Dictionary fetching error:", e);
         document.getElementById('form-word-context').value = "Arama sırasında bir hata oluştu veya bağlantı kurulamadı.";
@@ -540,6 +773,7 @@ async function saveSmartWord() {
     const examplesRaw = document.getElementById('form-word-examples').value;
     const synonymsRaw = document.getElementById('form-word-synonyms').value;
     const antonymsRaw = document.getElementById('form-word-antonyms').value;
+    const prepsRaw = document.getElementById('form-word-preps') ? document.getElementById('form-word-preps').value : '';
     
     const dateSelect = document.getElementById('form-word-date');
     let listDate = dateSelect.value;
@@ -570,7 +804,8 @@ async function saveSmartWord() {
         context: context,
         examples: splitLines(examplesRaw),
         synonyms: splitLines(synonymsRaw),
-        antonyms: splitLines(antonymsRaw)
+        antonyms: splitLines(antonymsRaw),
+        preps: splitLines(prepsRaw)
     };
     
     showLoading("Kaydediliyor...");
@@ -850,7 +1085,7 @@ function showWordDetail(w) {
     // Preps
     if (w.preps && w.preps.length > 0) {
         let phtml = w.preps.map(p => `<div class="example-sentence">${p}</div>`).join('');
-        container.innerHTML += `<div class="detail-block db-preps"><h3>Edat & Phrasal Verb Kullanımı</h3>${phtml}</div>`;
+        container.innerHTML += `<div class="detail-block db-preps"><h3>İlgili Terimler / Edat Kullanımı</h3>${phtml}</div>`;
     }
     if (w.phrasals && w.phrasals.length > 0) {
         let phtml = w.phrasals.map(p => `<div class="example-sentence">${p}</div>`).join('');
