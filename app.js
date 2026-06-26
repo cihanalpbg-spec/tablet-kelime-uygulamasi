@@ -159,7 +159,7 @@ function parseWordDocument(text) {
     let currentWordObj = null;
     let currentState = null; // 'examples', 'preps', 'phrasals', 'syns', 'ants'
 
-    // Regex to match the main word line e.g., "Preserve (Prizörv)" or "Preserve (v) (Prizörv)"
+    // Regex to match the main word line e.g., "Preserve (Prizerv)" or "Preserve (v) (Prizerv)"
     const wordRegex = /^([a-zA-Z\s\-]+)\s*\(.*?\)$/;
     
     for (let i = 0; i < lines.length; i++) {
@@ -243,7 +243,7 @@ function parseWordDocument(text) {
         });
     } else {
         hideLoading();
-        alertMsg("Uyarı", "Belgede uygun formatta kelime bulunamadı.", "warning");
+        alertMsg("Hata", "Belgede uygun formatta kelime bulunamadı.", "warning");
     }
 }
 
