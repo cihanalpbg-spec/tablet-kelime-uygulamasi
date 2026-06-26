@@ -297,6 +297,9 @@
                     <div class="dash-card game-card" onclick="startGame(5)">
                         <h3>5. Listeden Eş/Zıt Anlam Seçmece</h3>
                     </div>
+                    <div class="dash-card game-card" onclick="startGame(6)">
+                        <h3>6. Kelime Baloncuk Eşleştirme</h3>
+                    </div>
                 </div>
             </div>
         </section>
@@ -530,7 +533,30 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Service Worker başarıyla kaydedildi:', reg))
+                    .then(reg => {
+                        console.log('Service Worker başarıyla kaydedildi:', reg);
+                        reg.onupdatefound = () => {
+                            const installingWorker = reg.installing;
+                            installingWorker.onstatechange = () => {
+                                if (installingWorker.state === 'installed') {
+                                    if (navigator.serviceWorker.controller) {
+                                        Swal.fire({
+                                            title: 'Güncelleme Hazır! 🚀',
+                                            text: 'Yeni özelliklerin geçerli olması için uygulamanın yeniden başlatılması gerekiyor.',
+                                            icon: 'info',
+                                            showConfirmButton: true,
+                                            confirmButtonText: 'Şimdi Yeniden Yükle',
+                                            allowOutsideClick: false
+                                        }).then((result) => {
+                                            if (result.isConfirmed) {
+                                                window.location.reload();
+                                            }
+                                        });
+                                    }
+                                }
+                            };
+                        };
+                    })
                     .catch(err => console.error('Service Worker kaydı başarısız:', err));
             });
         }

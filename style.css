@@ -827,3 +827,107 @@ h1, h2, h3, h4 {
     display: flex;
     gap: 15px;
 }
+
+/* Bubble Game Styles */
+.bubble-game-wrapper {
+    width: 100%;
+    overflow-y: auto;
+    max-height: 70vh;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+.bubble-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 18px;
+    padding: 20px;
+    max-width: 1000px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.bubble {
+    width: 115px;
+    height: 115px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 12px;
+    color: #2c3e50;
+    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.25s, border-color 0.25s;
+    user-select: none;
+    border: 3px solid transparent;
+    animation: bubbleFloat 4s ease-in-out infinite alternate;
+    word-break: break-word;
+    line-height: 1.2;
+}
+
+.bubble:nth-child(2n) {
+    animation-duration: 4.8s;
+    animation-delay: 0.4s;
+}
+.bubble:nth-child(3n) {
+    animation-duration: 5.5s;
+    animation-delay: 0.8s;
+}
+.bubble:nth-child(4n) {
+    animation-duration: 6.2s;
+    animation-delay: 1.2s;
+}
+
+@keyframes bubbleFloat {
+    0% { transform: translateY(0) rotate(0deg); }
+    100% { transform: translateY(-10px) rotate(4deg); }
+}
+
+.bubble.english-bubble {
+    background: radial-gradient(circle at 30% 30%, rgba(224, 242, 254, 0.85) 0%, rgba(186, 230, 253, 0.9) 50%, rgba(125, 211, 252, 0.95) 100%);
+    border-color: #bae6fd;
+    box-shadow: inset -4px -4px 10px rgba(0,0,0,0.06), inset 4px 4px 10px rgba(255,255,255,0.7), 0 8px 16px rgba(14, 165, 233, 0.15);
+}
+
+.bubble.turkish-bubble {
+    background: radial-gradient(circle at 30% 30%, rgba(250, 245, 255, 0.85) 0%, rgba(243, 232, 255, 0.9) 50%, rgba(216, 180, 254, 0.95) 100%);
+    border-color: #e9d5ff;
+    box-shadow: inset -4px -4px 10px rgba(0,0,0,0.06), inset 4px 4px 10px rgba(255,255,255,0.7), 0 8px 16px rgba(168, 85, 247, 0.15);
+}
+
+.bubble.selected-bubble {
+    transform: scale(1.15) !important;
+    border-color: #f59e0b !important;
+    box-shadow: 0 0 20px #f59e0b, inset 0 0 10px rgba(255, 255, 255, 0.9) !important;
+    animation-play-state: paused !important;
+    z-index: 10;
+}
+
+.bubble.matched-bubble {
+    animation: bubblePop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important;
+    pointer-events: none;
+}
+
+@keyframes bubblePop {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.25); opacity: 0.8; }
+    100% { transform: scale(0); opacity: 0; }
+}
+
+.bubble.wrong-bubble {
+    animation: bubbleShake 0.4s ease-in-out !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 16px #ef4444, inset 0 0 10px rgba(255, 255, 255, 0.9) !important;
+}
+
+@keyframes bubbleShake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-8px); }
+    40%, 80% { transform: translateX(8px); }
+}
+

@@ -1383,7 +1383,7 @@ function startGame(mode) {
     gameState.wrongList = [];
     document.getElementById('game-score').innerText = "Puan: 0";
     
-    const titles = ["", "1. Türkçe Anlamı Sor", "2. Bağlamdan Kelimeyi Bul", "3. Eş/Zıt Anlamı Nedir?", "4. Tüm Eş/Zıt Anlamlıları Yaz", "5. Listeden Eş/Zıt Seçmece"];
+    const titles = ["", "1. Türkçe Anlamı Sor", "2. Bağlamdan Kelimeyi Bul", "3. Eş/Zıt Anlamı Nedir?", "4. Tüm Eş/Zıt Anlamlıları Yaz", "5. Listeden Eş/Zıt Seçmece", "6. Kelime Baloncuk Eşleştirme"];
     document.getElementById('game-title').innerText = titles[mode];
     
     showScreen('screen-active-game');
@@ -1393,6 +1393,11 @@ function startGame(mode) {
 function nextGameQuestion() {
     const container = document.getElementById('game-content-container');
     container.innerHTML = '';
+    
+    if (gameState.mode === 6) {
+        startBubbleGame();
+        return;
+    }
     
     // Pick random word
     gameState.currentWord = gameState.wordPool[Math.floor(Math.random() * gameState.wordPool.length)];
@@ -1490,6 +1495,227 @@ function checkGameAnswer() {
         feedback.className = "game-feedback game-wrong";
         input.disabled = true;
         setTimeout(nextGameQuestion, 2500);
+    }
+}
+
+// --- BUBBLE GAME IMPLEMENTATION ---
+let bubbleGameState = {
+    selectedEnglish: null,
+    selectedTurkish: null,
+    matchedCount: 0,
+    totalPairs: 0
+};
+
+let audioCtx = null;
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+}
+
+function playBubblePopSound() {
+    try {
+        initAudio();
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.15);
+    } catch (e) {
+        console.warn("Audio error:", e);
+    }
+}
+
+function playBubbleBuzzSound() {
+    try {
+        initAudio();
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+    } catch (e) {
+        console.warn("Audio error:", e);
+    }
+}
+
+function playSuccessSound() {
+    try {
+        initAudio();
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        notes.forEach((freq, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + i * 0.1);
+            gain.gain.setValueAtTime(0.15, now + i * 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now + i * 0.1);
+            osc.stop(now + i * 0.1 + 0.3);
+        });
+    } catch (e) {
+        console.warn("Audio error:", e);
+    }
+}
+
+function startBubbleGame() {
+    const container = document.getElementById('game-content-container');
+    container.innerHTML = '';
+    
+    let pool = [...gameState.wordPool];
+    pool.sort(() => Math.random() - 0.5);
+    // Grab up to 20 words for the matching game
+    const gameWords = pool.slice(0, 20);
+    bubbleGameState.totalPairs = gameWords.length;
+    bubbleGameState.matchedCount = 0;
+    bubbleGameState.selectedEnglish = null;
+    bubbleGameState.selectedTurkish = null;
+    
+    let bubblesData = [];
+    gameWords.forEach((w, idx) => {
+        let cleanMeaning = w.meaning;
+        if (cleanMeaning.startsWith("Genel Anlamı:")) {
+            cleanMeaning = cleanMeaning.replace("Genel Anlamı:", "").trim();
+        }
+        if (cleanMeaning.length > 25) {
+            cleanMeaning = cleanMeaning.substring(0, 22) + "...";
+        }
+        
+        bubblesData.push({
+            id: idx,
+            text: w.word.toUpperCase(),
+            type: 'english',
+            matchId: idx
+        });
+        bubblesData.push({
+            id: idx,
+            text: cleanMeaning,
+            type: 'turkish',
+            matchId: idx
+        });
+    });
+    
+    bubblesData.sort(() => Math.random() - 0.5);
+    
+    const gameWrapper = document.createElement('div');
+    gameWrapper.className = 'bubble-game-wrapper';
+    
+    const bubbleContainer = document.createElement('div');
+    bubbleContainer.className = 'bubble-container';
+    
+    bubblesData.forEach(b => {
+        const bubbleEl = document.createElement('div');
+        bubbleEl.className = `bubble ${b.type}-bubble`;
+        bubbleEl.innerText = b.text;
+        bubbleEl.dataset.matchId = b.matchId;
+        bubbleEl.dataset.type = b.type;
+        
+        bubbleEl.onclick = () => handleBubbleClick(bubbleEl);
+        bubbleContainer.appendChild(bubbleEl);
+    });
+    
+    gameWrapper.appendChild(bubbleContainer);
+    container.appendChild(gameWrapper);
+}
+
+function handleBubbleClick(bubbleEl) {
+    if (bubbleEl.classList.contains('matched-bubble') || bubbleEl.classList.contains('wrong-bubble')) {
+        return;
+    }
+    
+    const type = bubbleEl.dataset.type;
+    const matchId = bubbleEl.dataset.matchId;
+    
+    if (type === 'english') {
+        if (bubbleGameState.selectedEnglish) {
+            bubbleGameState.selectedEnglish.classList.remove('selected-bubble');
+        }
+        bubbleGameState.selectedEnglish = bubbleEl;
+        bubbleEl.classList.add('selected-bubble');
+    } else {
+        if (bubbleGameState.selectedTurkish) {
+            bubbleGameState.selectedTurkish.classList.remove('selected-bubble');
+        }
+        bubbleGameState.selectedTurkish = bubbleEl;
+        bubbleEl.classList.add('selected-bubble');
+    }
+    
+    if (bubbleGameState.selectedEnglish && bubbleGameState.selectedTurkish) {
+        const engId = bubbleGameState.selectedEnglish.dataset.matchId;
+        const turId = bubbleGameState.selectedTurkish.dataset.matchId;
+        const elEng = bubbleGameState.selectedEnglish;
+        const elTur = bubbleGameState.selectedTurkish;
+        
+        if (engId === turId) {
+            elEng.classList.remove('selected-bubble');
+            elTur.classList.remove('selected-bubble');
+            elEng.classList.add('matched-bubble');
+            elTur.classList.add('matched-bubble');
+            
+            playBubblePopSound();
+            
+            gameState.score += 10;
+            document.getElementById('game-score').innerText = `Puan: ${gameState.score}`;
+            
+            bubbleGameState.selectedEnglish = null;
+            bubbleGameState.selectedTurkish = null;
+            bubbleGameState.matchedCount++;
+            
+            if (bubbleGameState.matchedCount === bubbleGameState.totalPairs) {
+                setTimeout(() => {
+                    playSuccessSound();
+                    Swal.fire({
+                        title: 'Tebrikler! 🎉',
+                        text: `Tüm baloncukları eşleştirdiniz! Toplam Puanınız: ${gameState.score}`,
+                        icon: 'success',
+                        confirmButtonColor: themes[currentLang].primary,
+                        confirmButtonText: 'Tekrar Oyna',
+                        showCancelButton: true,
+                        cancelButtonText: 'Oyun Menüsü'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            startBubbleGame();
+                        } else {
+                            goBack('screen-games-menu');
+                        }
+                    });
+                }, 600);
+            }
+        } else {
+            elEng.classList.remove('selected-bubble');
+            elTur.classList.remove('selected-bubble');
+            elEng.classList.add('wrong-bubble');
+            elTur.classList.add('wrong-bubble');
+            
+            playBubbleBuzzSound();
+            
+            bubbleGameState.selectedEnglish = null;
+            bubbleGameState.selectedTurkish = null;
+            
+            setTimeout(() => {
+                elEng.classList.remove('wrong-bubble');
+                elTur.classList.remove('wrong-bubble');
+            }, 600);
+        }
     }
 }
 

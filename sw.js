@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kelime-merkezi-v1';
+const CACHE_NAME = 'kelime-merkezi-v2';
 const ASSETS = [
   './',
   './index.html',
