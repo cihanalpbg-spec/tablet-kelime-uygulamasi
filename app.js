@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('file-test-upload').addEventListener('change', handleTestUpload);
     document.getElementById('file-grammar-upload').addEventListener('change', handleGrammarUpload);
     document.getElementById('file-backup-upload').addEventListener('change', handleBackupUpload);
+    document.getElementById('file-flashcard-upload').addEventListener('change', handleFlashcardUpload);
 });
 
 // --- NAVIGATION ---
@@ -92,6 +93,7 @@ async function selectLanguage(lang) {
         if (!appData.words) appData.words = {};
         if (!appData.tests) appData.tests = [];
         if (!appData.grammar) appData.grammar = [];
+        if (!appData.flashcards) appData.flashcards = {};
         if (!appData.spacedStatus) appData.spacedStatus = {};
     } catch (e) {
         console.error(e);
@@ -2327,3 +2329,498 @@ function confirmEndSpacedTest() {
         }
     });
 }
+
+// --- FLASHCARD MODULE ---
+let currentFlashcardListName = "";
+let flashcardTestPool = [];
+let flashcardTestIndex = 0;
+let flashcardTestDirection = "en-tr"; // 'en-tr' or 'tr-en'
+let flashcardCorrectCount = 0;
+let flashcardWrongCards = [];
+
+async function handleFlashcardUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Prompt for List Name
+    const today = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const { value: listName } = await Swal.fire({
+        title: 'Flash Kart Liste Adı',
+        input: 'text',
+        inputLabel: 'Lütfen flash kart listesinin adını giriniz:',
+        inputValue: `${today} Flash Kart Listesi`,
+        showCancelButton: true,
+        confirmButtonColor: themes[currentLang].primary,
+        cancelButtonText: 'İptal',
+        confirmButtonText: 'Yükle',
+        inputValidator: (value) => {
+            if (!value) {
+                return 'Bir liste adı girmelisiniz!';
+            }
+        }
+    });
+
+    if (!listName) {
+        e.target.value = '';
+        return;
+    }
+
+    showLoading("Word belgesi flash kartlar için okunuyor...");
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.convertToHtml({arrayBuffer: arrayBuffer});
+        const htmlContent = result.value;
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        
+        const tables = tempDiv.querySelectorAll('table');
+        let cards = [];
+        
+        if (tables.length > 0) {
+            tables.forEach(table => {
+                const rows = table.querySelectorAll('tr');
+                rows.forEach(row => {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length >= 2) {
+                        // Col 1: English word & Pronunciation
+                        const col1Text = cells[0].innerHTML || "";
+                        // replace tags with newline to separate lines
+                        let cleanCol1 = col1Text.replace(/<\/p>/gi, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim();
+                        let col1Lines = cleanCol1.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                        
+                        // Col 2: Turkish meaning
+                        const col2Text = cells[1].innerText || cells[1].textContent || "";
+                        let cleanCol2 = col2Text.replace(/<[^>]+>/g, '').trim();
+                        
+                        if (col1Lines.length > 0 && cleanCol2) {
+                            let word = col1Lines[0];
+                            let pronunciation = "";
+                            if (col1Lines.length > 1) {
+                                pronunciation = col1Lines[1];
+                            } else {
+                                // Try regex parse like word (pronunciation)
+                                let m = word.match(/^([a-zA-Z\s\-'\u2019]+)\s*\((.*?)\)$/);
+                                if (m) {
+                                    word = m[1].trim();
+                                    pronunciation = '(' + m[2].trim() + ')';
+                                }
+                            }
+                            
+                            // Format pronunciation with parentheses if needed
+                            if (pronunciation && !pronunciation.startsWith('(')) pronunciation = '(' + pronunciation;
+                            if (pronunciation && !pronunciation.endsWith(')')) pronunciation = pronunciation + ')';
+                            
+                            cards.push({
+                                word: word,
+                                pronunciation: pronunciation,
+                                meaning: cleanCol2
+                            });
+                        }
+                    }
+                });
+            });
+        }
+        
+        // Fallback: Text Parser
+        if (cards.length === 0) {
+            const cleanText = tempDiv.innerText || tempDiv.textContent || "";
+            const lines = cleanText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            
+            let i = 0;
+            while (i < lines.length) {
+                let word = lines[i];
+                let pronunciation = "";
+                let meaning = "";
+                
+                if (i + 1 < lines.length && lines[i+1].startsWith('(')) {
+                    pronunciation = lines[i+1];
+                    if (i + 2 < lines.length) {
+                        meaning = lines[i+2];
+                        i += 3;
+                    } else {
+                        i += 2;
+                    }
+                } else if (i + 1 < lines.length) {
+                    meaning = lines[i+1];
+                    i += 2;
+                } else {
+                    i++;
+                }
+                
+                if (word && meaning) {
+                    cards.push({
+                        word: word,
+                        pronunciation: pronunciation,
+                        meaning: meaning
+                    });
+                }
+            }
+        }
+        
+        if (cards.length > 0) {
+            if (!appData.flashcards) appData.flashcards = {};
+            
+            appData.flashcards[listName] = cards;
+            await saveData();
+            hideLoading();
+            alertMsg("Başarılı", `${cards.length} adet flash kart "${listName}" olarak yüklendi!`);
+            showFlashcardDashboard();
+        } else {
+            hideLoading();
+            alertMsg("Hata", "Belgede flash kart formatında (kelime ve anlamı) veri bulunamadı.", "warning");
+        }
+    } catch (error) {
+        console.error(error);
+        alertMsg("Hata", "Word dosyası ayrıştırılırken bir hata oluştu.", "error");
+        hideLoading();
+    }
+    e.target.value = '';
+}
+
+function showFlashcardDashboard() {
+    const container = document.getElementById('flashcard-list-container');
+    container.innerHTML = '';
+    
+    if (!appData.flashcards) appData.flashcards = {};
+    const lists = Object.keys(appData.flashcards);
+    
+    if (lists.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#777;">Henüz flash kart listesi yüklenmemiş.</p>';
+    } else {
+        lists.forEach(listName => {
+            const cardCount = appData.flashcards[listName].length;
+            const div = document.createElement('div');
+            div.className = 'list-item';
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.alignItems = 'center';
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.style.flex = '1';
+            contentDiv.style.cursor = 'pointer';
+            contentDiv.innerHTML = `<h3>${listName}</h3><span>${cardCount} Kart</span>`;
+            contentDiv.onclick = () => viewFlashcardList(listName);
+            
+            const btnGroup = document.createElement('div');
+            btnGroup.style.display = 'flex';
+            btnGroup.style.gap = '10px';
+            btnGroup.style.alignItems = 'center';
+            
+            const testBtn = document.createElement('button');
+            testBtn.className = 'btn-primary';
+            testBtn.innerText = 'Sınav Çöz';
+            testBtn.style.padding = '5px 12px';
+            testBtn.style.fontSize = '0.85rem';
+            testBtn.style.borderRadius = '6px';
+            testBtn.onclick = (e) => {
+                e.stopPropagation();
+                currentFlashcardListName = listName;
+                startFlashcardTestDirectly();
+            };
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-delete';
+            deleteBtn.innerHTML = '🗑️';
+            deleteBtn.style.background = 'none';
+            deleteBtn.style.border = 'none';
+            deleteBtn.style.cursor = 'pointer';
+            deleteBtn.style.fontSize = '1.2rem';
+            deleteBtn.style.padding = '5px 10px';
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                deleteFlashcardList(listName);
+            };
+            
+            btnGroup.appendChild(testBtn);
+            btnGroup.appendChild(deleteBtn);
+            
+            div.appendChild(contentDiv);
+            div.appendChild(btnGroup);
+            container.appendChild(div);
+        });
+    }
+    showScreen('screen-flashcard-dashboard');
+}
+
+function deleteFlashcardList(listName) {
+    Swal.fire({
+        title: 'Emin misiniz?',
+        text: `"${listName}" flash kart listesini silmek istediğinize emin misiniz?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Evet, Sil',
+        cancelButtonText: 'İptal',
+        confirmButtonColor: themes[currentLang].primary
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            delete appData.flashcards[listName];
+            showLoading("Siliniyor...");
+            await saveData();
+            hideLoading();
+            alertMsg("Silindi", "Flash kart listesi başarıyla silindi.");
+            showFlashcardDashboard();
+        }
+    });
+}
+
+function viewFlashcardList(listName) {
+    currentFlashcardListName = listName;
+    document.getElementById('flashcard-view-title').innerText = listName;
+    
+    const listContainer = document.getElementById('flashcard-words-list');
+    listContainer.innerHTML = '';
+    
+    const cards = appData.flashcards[listName] || [];
+    
+    cards.forEach(c => {
+        const li = document.createElement('li');
+        li.className = 'word-row';
+        li.style.display = 'flex';
+        li.style.justifyContent = 'space-between';
+        li.style.alignItems = 'center';
+        
+        const leftDiv = document.createElement('div');
+        leftDiv.style.flex = '1';
+        leftDiv.innerHTML = `
+            <div>
+                <span class="word-main">${c.word}</span>
+                ${c.pronunciation ? `<span class="word-type" style="color:var(--primary-color); font-weight:600;">${c.pronunciation}</span>` : ''}
+                <span class="word-meaning" style="margin-left:15px; border-left: 2px solid #ddd; padding-left: 10px;">${c.meaning}</span>
+            </div>
+        `;
+        
+        const audioBtn = document.createElement('button');
+        audioBtn.innerHTML = '🔊';
+        audioBtn.style.background = 'none';
+        audioBtn.style.border = 'none';
+        audioBtn.style.cursor = 'pointer';
+        audioBtn.style.fontSize = '1.3rem';
+        audioBtn.style.padding = '5px 10px';
+        audioBtn.onclick = () => speakWord(c.word);
+        
+        li.appendChild(leftDiv);
+        li.appendChild(audioBtn);
+        listContainer.appendChild(li);
+    });
+    
+    showScreen('screen-flashcard-view');
+}
+
+function startFlashcardTestFromView() {
+    startFlashcardTestDirectly();
+}
+
+function startFlashcardTestDirectly() {
+    // Show setup screen inside test screen
+    document.getElementById('flashcard-setup-area').classList.remove('hidden');
+    document.getElementById('flashcard-test-area').classList.add('hidden');
+    document.getElementById('flashcard-test-progress').innerText = `Hazırlanıyor`;
+    showScreen('screen-flashcard-test');
+}
+
+function launchFlashcardTest(direction) {
+    const list = appData.flashcards[currentFlashcardListName] || [];
+    if (list.length === 0) {
+        alertMsg("Hata", "Bu listede test edilecek kelime yok.", "error");
+        showFlashcardDashboard();
+        return;
+    }
+    
+    flashcardTestDirection = direction;
+    flashcardTestPool = [...list].sort(() => Math.random() - 0.5);
+    flashcardTestIndex = 0;
+    flashcardCorrectCount = 0;
+    flashcardWrongCards = [];
+    
+    document.getElementById('flashcard-setup-area').classList.add('hidden');
+    document.getElementById('flashcard-test-area').classList.remove('hidden');
+    
+    renderFlashcardQuestion();
+}
+
+function renderFlashcardQuestion() {
+    const w = flashcardTestPool[flashcardTestIndex];
+    document.getElementById('flashcard-test-progress').innerText = `${flashcardTestIndex + 1} / ${flashcardTestPool.length}`;
+    
+    // Reset Card Animation & View
+    const cardInner = document.getElementById('flashcard-card-inner');
+    cardInner.classList.remove('flipped');
+    
+    const input = document.getElementById('flashcard-answer-input');
+    input.value = '';
+    input.disabled = false;
+    
+    const feedback = document.getElementById('flashcard-test-feedback');
+    feedback.innerText = '';
+    feedback.className = 'game-feedback';
+    
+    // Set controls
+    document.getElementById('btn-flashcard-submit').style.display = 'inline-block';
+    document.getElementById('btn-flashcard-next').style.display = 'none';
+    document.getElementById('btn-flashcard-skip').style.display = 'inline-block';
+    
+    // Fill Front & Back card contents
+    const frontWord = document.getElementById('flashcard-front-word');
+    const frontSub = document.getElementById('flashcard-front-sub');
+    
+    const backWord = document.getElementById('flashcard-back-word');
+    const backSub = document.getElementById('flashcard-back-sub');
+    const backMeaning = document.getElementById('flashcard-back-meaning');
+    
+    if (flashcardTestDirection === 'en-tr') {
+        frontWord.innerText = w.word.toUpperCase();
+        frontSub.innerText = w.pronunciation || '';
+        
+        backWord.innerText = w.word.toUpperCase();
+        backSub.innerText = w.pronunciation || '';
+        backMeaning.innerText = w.meaning;
+        
+        input.placeholder = "Türkçe anlamını yazın...";
+    } else {
+        frontWord.innerText = w.meaning;
+        frontSub.innerText = '(İngilizcesini Yazın)';
+        
+        backWord.innerText = w.word.toUpperCase();
+        backSub.innerText = w.pronunciation || '';
+        backMeaning.innerText = w.meaning;
+        
+        input.placeholder = "İngilizce kelimeyi yazın...";
+    }
+    
+    setTimeout(() => {
+        input.focus();
+    }, 200);
+}
+
+function flipActiveFlashcard() {
+    document.getElementById('flashcard-card-inner').classList.toggle('flipped');
+}
+
+function checkTurkishFlashcardMatch(userInput, correctMeaning) {
+    let cleanUser = userInput.trim().toLowerCase();
+    let cleanCorrect = correctMeaning.trim().toLowerCase();
+    
+    if (cleanCorrect.includes(cleanUser) && cleanUser.length >= 2) return true;
+    
+    let parts = cleanCorrect.split(/[,;\(\)\{\}\[\]]/).map(p => p.trim().toLowerCase()).filter(p => p.length > 0);
+    return parts.some(p => p === cleanUser);
+}
+
+function checkEnglishFlashcardMatch(userInput, correctWord) {
+    let cleanUser = userInput.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '');
+    let cleanCorrect = correctWord.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '');
+    return cleanUser === cleanCorrect;
+}
+
+function submitFlashcardAnswer() {
+    const input = document.getElementById('flashcard-answer-input');
+    const feedback = document.getElementById('flashcard-test-feedback');
+    const userVal = input.value.trim();
+    
+    if (!userVal) return;
+    
+    const w = flashcardTestPool[flashcardTestIndex];
+    let isCorrect = false;
+    
+    if (flashcardTestDirection === 'en-tr') {
+        isCorrect = checkTurkishFlashcardMatch(userVal, w.meaning);
+    } else {
+        isCorrect = checkEnglishFlashcardMatch(userVal, w.word);
+    }
+    
+    input.disabled = true;
+    document.getElementById('btn-flashcard-submit').style.display = 'none';
+    document.getElementById('btn-flashcard-skip').style.display = 'none';
+    
+    if (isCorrect) {
+        feedback.innerText = "Doğru! 🎉";
+        feedback.className = "game-feedback game-correct";
+        flashcardCorrectCount++;
+        
+        // Success Sound
+        playBubblePopSound();
+        
+        // Auto-advance after 1.2 seconds
+        setTimeout(nextFlashcardQuestion, 1200);
+    } else {
+        feedback.innerText = "Yanlış! Kart Doğru Cevabı Gösteriyor...";
+        feedback.className = "game-feedback game-wrong";
+        
+        // Buzz sound
+        playBubbleBuzzSound();
+        
+        // Flip card to show answer
+        const cardInner = document.getElementById('flashcard-card-inner');
+        if (!cardInner.classList.contains('flipped')) {
+            cardInner.classList.add('flipped');
+        }
+        
+        // Pronounce correct English word online/offline
+        speakWord(w.word);
+        
+        // Show Next button to let user view before clicking
+        const nextBtn = document.getElementById('btn-flashcard-next');
+        nextBtn.style.display = 'inline-block';
+        nextBtn.focus();
+    }
+}
+
+function skipFlashcardQuestion() {
+    const input = document.getElementById('flashcard-answer-input');
+    const feedback = document.getElementById('flashcard-test-feedback');
+    const w = flashcardTestPool[flashcardTestIndex];
+    
+    input.disabled = true;
+    document.getElementById('btn-flashcard-submit').style.display = 'none';
+    document.getElementById('btn-flashcard-skip').style.display = 'none';
+    
+    feedback.innerText = "Atlandı. Doğru Cevap:";
+    feedback.className = "game-feedback game-wrong";
+    
+    const cardInner = document.getElementById('flashcard-card-inner');
+    if (!cardInner.classList.contains('flipped')) {
+        cardInner.classList.add('flipped');
+    }
+    
+    // Pronounce correct English word
+    speakWord(w.word);
+    
+    const nextBtn = document.getElementById('btn-flashcard-next');
+    nextBtn.style.display = 'inline-block';
+    nextBtn.focus();
+}
+
+function nextFlashcardQuestion() {
+    if (flashcardTestIndex < flashcardTestPool.length - 1) {
+        flashcardTestIndex++;
+        renderFlashcardQuestion();
+    } else {
+        // Sınav Bitti
+        playSuccessSound();
+        Swal.fire({
+            title: "Sınav Tamamlandı! 🏆",
+            html: `<p style="font-size: 1.15rem;">Doğru Sayısı: <strong>${flashcardCorrectCount} / ${flashcardTestPool.length}</strong></p>`,
+            icon: "success",
+            confirmButtonColor: themes[currentLang].primary
+        }).then(() => {
+            showFlashcardDashboard();
+        });
+    }
+}
+
+function confirmEndFlashcardTest() {
+    Swal.fire({
+        title: "Sınavı bitirmek istiyor musunuz?",
+        text: "Sınav yarıda kesilecektir.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Evet, Bitir",
+        cancelButtonText: "İptal"
+    }).then((result) => {
+        if(result.isConfirmed) {
+            showFlashcardDashboard();
+        }
+    });
+}
+

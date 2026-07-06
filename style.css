@@ -513,7 +513,8 @@ h1, h2, h3, h4 {
 }
 
 /* Grammar & Backup UI Styles */
-.view-grammar:hover {
+.view-grammar:hover,
+.view-flashcards:hover {
     border-color: var(--primary-color);
 }
 .grammar-detail-card {

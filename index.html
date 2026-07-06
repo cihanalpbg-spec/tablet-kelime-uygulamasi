@@ -183,6 +183,11 @@
                     <p>Word belgelerinden (.docx) gramer konuları ekleyin ve çalışın.</p>
                 </div>
 
+                <div class="dash-card view-flashcards" onclick="showFlashcardDashboard()" style="cursor: pointer;">
+                    <h3>Flash Kart & Sınav Bölümü</h3>
+                    <p>Word şablonundan flash kart yükleyin ve test çözerek kelimeleri pekiştirin.</p>
+                </div>
+
                 <div class="dash-card backup-restore">
                     <h3>Yedekleme & Aktarma</h3>
                     <p>Bu dilin verilerini yedekleyin veya başka bir cihazdan aktarın.</p>
@@ -512,6 +517,98 @@
                 </div>
                 <div class="test-controls">
                     <button id="btn-next-spaced-question" class="btn-primary" style="display: none;" onclick="nextSpacedQuestion()">Sonraki Soru</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 15: Flashcard Dashboard -->
+        <section id="screen-flashcard-dashboard" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>Flash Kart Bölümü</h1>
+                <div></div>
+            </header>
+            <div class="content-area">
+                <div class="grammar-actions" style="margin-bottom: 25px;">
+                    <label class="btn-primary" style="display: inline-block; cursor: pointer;">
+                        Yeni Flash Kart Listesi Yükle (.docx)
+                        <input type="file" id="file-flashcard-upload" accept=".docx" hidden>
+                    </label>
+                </div>
+                <div id="flashcard-list-container" class="list-container">
+                    <!-- Flashcard lists will be injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 16: Flashcard Viewer & Study -->
+        <section id="screen-flashcard-view" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-flashcard-dashboard')">⟵ Geri</button>
+                <h1 id="flashcard-view-title">Liste Detayı</h1>
+                <button class="btn-primary" id="btn-start-flashcard-study" onclick="startFlashcardTestFromView()">Sınavı Başlat</button>
+            </header>
+            <div class="content-area with-white-bg">
+                <ul id="flashcard-words-list" class="words-list">
+                    <!-- Words will be injected here -->
+                </ul>
+            </div>
+        </section>
+
+        <!-- Screen 17: Flashcard Test -->
+        <section id="screen-flashcard-test" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="confirmEndFlashcardTest()">⟵ Sınavı Bitir</button>
+                <h1 id="flashcard-test-title">Kelime Sınavı</h1>
+                <div id="flashcard-test-progress">1 / 10</div>
+            </header>
+            
+            <!-- Direction Selector (shown before test starts) -->
+            <div class="content-area" id="flashcard-setup-area">
+                <div class="game-area" style="min-height: auto; padding: 30px;">
+                    <h3 style="margin-bottom: 20px; color: var(--primary-color);">Sınav Yönünü Seçin</h3>
+                    <div style="display: flex; flex-direction: column; gap: 15px; width: 100%; max-width: 400px; margin: 0 auto;">
+                        <button class="btn-primary" style="padding: 15px; font-size: 1.1rem;" onclick="launchFlashcardTest('en-tr')">İngilizce ⟶ Türkçe</button>
+                        <button class="btn-primary" style="padding: 15px; font-size: 1.1rem;" onclick="launchFlashcardTest('tr-en')">Türkçe ⟶ İngilizce</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Active Test Panel (hidden initially) -->
+            <div class="content-area review-area hidden" id="flashcard-test-area">
+                <!-- Flippable Card -->
+                <div class="spaced-card-outer" id="flashcard-card-outer-el">
+                    <div class="spaced-card-inner" id="flashcard-card-inner">
+                        <!-- Front -->
+                        <div class="spaced-card-front" id="flashcard-card-front">
+                            <h2 id="flashcard-front-word" style="font-size: 2.2rem; word-break: break-word; padding: 0 10px;">Word</h2>
+                            <p id="flashcard-front-sub" style="font-size: 1.1rem; margin-top: 10px; opacity: 0.9;">(Pronunciation)</p>
+                            <span class="tap-hint">Kartı çevirmek için dokunun 👆</span>
+                        </div>
+                        <!-- Back -->
+                        <div class="spaced-card-back" id="flashcard-card-back">
+                            <h3 id="flashcard-back-title" style="font-size: 1.5rem; margin-bottom: 10px;">Doğru Cevap</h3>
+                            <h2 id="flashcard-back-word" style="font-size: 2.2rem; color: var(--primary-color); word-break: break-word; padding: 0 10px;">Word</h2>
+                            <p id="flashcard-back-sub" style="font-size: 1.1rem; margin-top: 5px; color: var(--text-light); font-style: italic;">(Pronunciation)</p>
+                            <div style="margin-top: 15px; font-size: 1.2rem; font-weight: 600; color: #2c3e50; border-top: 1px dashed #eee; padding-top: 15px; width: 100%;">
+                                <span id="flashcard-back-meaning">Anlamı</span>
+                            </div>
+                            <span class="tap-hint">Kartı çevirmek için dokunun 👆</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Answer input controls -->
+                <div style="width: 100%; max-width: 500px; display: flex; flex-direction: column; align-items: center; gap: 15px;">
+                    <input type="text" id="flashcard-answer-input" class="game-input" style="width: 100%; max-width: none; margin-bottom: 0;" placeholder="Cevabınızı buraya yazın..." onkeypress="if(event.key === 'Enter') submitFlashcardAnswer()">
+                    
+                    <div id="flashcard-test-feedback" class="game-feedback" style="margin-bottom: 0;"></div>
+                    
+                    <div style="display: flex; gap: 15px; width: 100%;">
+                        <button class="btn-primary" id="btn-flashcard-submit" onclick="submitFlashcardAnswer()" style="flex: 2; padding: 12px;">Cevapla</button>
+                        <button class="btn-primary" id="btn-flashcard-next" onclick="nextFlashcardQuestion()" style="flex: 1; display: none; padding: 12px;">Sonraki Kart</button>
+                        <button class="btn-primary" id="btn-flashcard-skip" onclick="skipFlashcardQuestion()" style="flex: 1; background: #e74c3c; padding: 12px;">Atla</button>
+                    </div>
                 </div>
             </div>
         </section>
