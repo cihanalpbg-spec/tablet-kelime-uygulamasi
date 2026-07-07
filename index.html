@@ -15,9 +15,10 @@
     <meta name="apple-mobile-web-app-title" content="Kelime Merkezi">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;600&family=Architects+Daughter&family=Patrick+Hand&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <!-- Use localforage for easier IndexedDB usage -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -179,13 +180,27 @@
                 </div>
 
                 <div class="dash-card view-grammar" onclick="showGrammarSection()">
-                    <h3>Gramer Bölümü</h3>
-                    <p>Word belgelerinden (.docx) gramer konuları ekleyin ve çalışın.</p>
+                    <h3>Gramer Konuları</h3>
+                    <p>Yüklenen gramer konularına çalışın.</p>
+                </div>
+
+                <div class="dash-card upload-grammar">
+                    <h3>Gramer Yükle</h3>
+                    <p>Word belgesinden (.docx) gramer konusu ekleyin.</p>
+                    <label class="btn-primary">
+                        Dosya Seç
+                        <input type="file" id="file-grammar-upload" accept=".docx" hidden>
+                    </label>
                 </div>
 
                 <div class="dash-card view-flashcards" onclick="showFlashcardDashboard()" style="cursor: pointer;">
                     <h3>Flash Kart & Sınav Bölümü</h3>
                     <p>Word şablonundan flash kart yükleyin ve test çözerek kelimeleri pekiştirin.</p>
+                </div>
+
+                <div class="dash-card view-stats" onclick="showStatsAndWrongWordsScreen()" style="cursor: pointer;">
+                    <h3>İstatistik & Yanlış Kelimeler</h3>
+                    <p>Doğru/yanlış oranlarınızı görün ve yanlış bilinen kelimeleri çalışın.</p>
                 </div>
 
                 <div class="dash-card backup-restore">
@@ -331,10 +346,10 @@
                 <div></div>
             </header>
             <div class="content-area">
-                <div class="grammar-actions" style="margin-bottom: 25px;">
+                <div class="grammar-actions" style="margin-bottom: 25px; display: none;">
                     <label class="btn-primary" style="display: inline-block; cursor: pointer;">
                         Yeni Gramer Ekle (.docx)
-                        <input type="file" id="file-grammar-upload" accept=".docx" hidden>
+                        <input type="file" id="file-grammar-upload-unused" accept=".docx" hidden>
                     </label>
                 </div>
                 <div id="grammar-list-container" class="list-container">
@@ -610,6 +625,60 @@
                         <button class="btn-primary" id="btn-flashcard-skip" onclick="skipFlashcardQuestion()" style="flex: 1; background: #e74c3c; padding: 12px;">Atla</button>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <!-- Screen 18: Stats and Wrong Words -->
+        <section id="screen-stats-wrong-words" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>İstatistik & Yanlış Kelimeler</h1>
+                <div></div>
+            </header>
+            <div class="content-area">
+                <!-- Stats Section -->
+                <div class="stats-panel" style="background: white; border-radius: 15px; padding: 25px; box-shadow: var(--shadow); margin-bottom: 25px; color: #2c3e50;">
+                    <h3 style="margin-bottom: 15px; color: var(--primary-color);">Genel İstatistikler</h3>
+                    <div style="display: flex; gap: 20px; justify-content: space-around; text-align: center;">
+                        <div>
+                            <h4 style="font-size: 2rem; color: var(--success); margin: 0;" id="stats-correct-count">0</h4>
+                            <p style="color: #777; font-size: 0.9rem; margin-top: 5px;">Doğru Sayısı</p>
+                        </div>
+                        <div>
+                            <h4 style="font-size: 2rem; color: #e74c3c; margin: 0;" id="stats-wrong-count">0</h4>
+                            <p style="color: #777; font-size: 0.9rem; margin-top: 5px;">Yanlış Sayısı</p>
+                        </div>
+                        <div>
+                            <h4 style="font-size: 2rem; color: var(--primary-color); margin: 0;" id="stats-accuracy">0%</h4>
+                            <p style="color: #777; font-size: 0.9rem; margin-top: 5px;">Başarı Oranı</p>
+                        </div>
+                    </div>
+                    <div style="margin-top: 20px; text-align: center;">
+                        <button class="btn-primary" style="background: #7f8c8d; font-size: 0.9rem; padding: 8px 15px;" onclick="resetStats()">İstatistikleri Sıfırla</button>
+                    </div>
+                </div>
+
+                <!-- Wrong Words Lists by Date -->
+                <h3 style="margin-bottom: 15px; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">Tarihe Göre Hatalı Kelimeler</h3>
+                <div id="wrong-dates-container" class="list-container">
+                    <!-- Wrong dates list will be injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 19: Study Wrong Words of a Specific Date -->
+        <section id="screen-wrong-words-study" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-stats-wrong-words')">⟵ Geri</button>
+                <h1 id="wrong-words-date-title">Tarihli Yanlış Kelimeler</h1>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-primary" id="btn-start-wrong-study" onclick="startWrongWordsStudy()">Sınavı Başlat</button>
+                </div>
+            </header>
+            <div class="content-area with-white-bg">
+                <ul id="wrong-words-list" class="words-list">
+                    <!-- Wrong words will be injected here -->
+                </ul>
             </div>
         </section>
 

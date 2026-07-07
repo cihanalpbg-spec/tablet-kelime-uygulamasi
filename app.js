@@ -95,6 +95,8 @@ async function selectLanguage(lang) {
         if (!appData.grammar) appData.grammar = [];
         if (!appData.flashcards) appData.flashcards = {};
         if (!appData.spacedStatus) appData.spacedStatus = {};
+        if (!appData.stats) appData.stats = { correct: 0, wrong: 0 };
+        if (!appData.wrongWords) appData.wrongWords = {};
     } catch (e) {
         console.error(e);
         appData = { words: {}, tests: [], grammar: [] };
@@ -1462,6 +1464,80 @@ function nextGameQuestion() {
     }
 }
 
+function normalizeTurkishText(str) {
+    if (!str) return "";
+    return str
+        .toLowerCase()
+        .replace(/[âä]/g, 'a')
+        .replace(/[îï]/g, 'i')
+        .replace(/[ûü]/g, 'u')
+        .replace(/[ö]/g, 'o')
+        .replace(/[ç]/g, 'c')
+        .replace(/[ğ]/g, 'g')
+        .replace(/[ş]/g, 's')
+        .replace(/[ı]/g, 'i')
+        .replace(/['’\"`´]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function cleanFillers(str) {
+    if (!str) return "";
+    return str
+        .replace(/\bbş\b\.?/g, '')
+        .replace(/\bbir\s+şey\b/g, '')
+        .replace(/\bbirşey\b/g, '')
+        .replace(/\bbiri\b/g, '')
+        .replace(/\bbirisi\b/g, '')
+        .replace(/\bbirine\b/g, '')
+        .replace(/\bbirini\b/g, '')
+        .replace(/\bbirisiyle\b/g, '')
+        .replace(/\bbiriyle\b/g, '')
+        .replace(/\bsth\b\.?/g, '')
+        .replace(/\bsb\b\.?/g, '')
+        .replace(/\bsomeone\b/g, '')
+        .replace(/\bsomething\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function checkTurkishMatch(userInput, correctMeaning) {
+    const cleanInput = userInput.trim().toLowerCase();
+    const normInput = normalizeTurkishText(cleanInput);
+    const fillerFreeInput = cleanFillers(normInput);
+
+    const parts = correctMeaning.split(/[,;\(\)\{\}\[\]]|\bveya\b|\bya\s+da\b/)
+        .map(p => p.trim().toLowerCase())
+        .filter(p => p.length > 0);
+
+    for (let part of parts) {
+        const cleanPart = part;
+        const normPart = normalizeTurkishText(part);
+        const fillerFreePart = cleanFillers(normPart);
+
+        if (cleanInput === cleanPart) return true;
+        if (normInput === normPart) return true;
+        if (fillerFreeInput === fillerFreePart && fillerFreePart.length > 0) return true;
+        
+        if (fillerFreeInput.length >= 3 && fillerFreePart.includes(fillerFreeInput)) return true;
+        if (fillerFreePart.length >= 3 && fillerFreeInput.includes(fillerFreePart)) return true;
+    }
+    
+    const entireNormCorrect = normalizeTurkishText(correctMeaning);
+    const entireFillerFreeCorrect = cleanFillers(entireNormCorrect);
+    if (fillerFreeInput === entireFillerFreeCorrect && entireFillerFreeCorrect.length > 0) return true;
+    if (fillerFreeInput.length >= 3 && entireFillerFreeCorrect.includes(fillerFreeInput)) return true;
+    if (entireFillerFreeCorrect.length >= 3 && fillerFreeInput.includes(entireFillerFreeCorrect)) return true;
+
+    return false;
+}
+
+function checkEnglishMatch(userInput, correctWord) {
+    let cleanUser = userInput.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '');
+    let cleanCorrect = correctWord.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '');
+    return cleanUser === cleanCorrect;
+}
+
 function checkGameAnswer() {
     const input = document.getElementById('game-answer-input');
     const feedback = document.getElementById('game-feedback');
@@ -1474,14 +1550,13 @@ function checkGameAnswer() {
     let correctText = "";
     
     if (gameState.mode === 1) {
-        // Turkish Meaning check (fuzzy match)
-        if (w.meaning.toLowerCase().includes(val)) isCorrect = true;
+        if (checkTurkishMatch(val, w.meaning)) isCorrect = true;
         correctText = w.meaning;
     } else if (gameState.mode === 2) {
-        if (val === w.word.toLowerCase()) isCorrect = true;
+        if (checkEnglishMatch(val, w.word)) isCorrect = true;
         correctText = w.word;
     } else if (gameState.mode === 3) {
-        if (gameState.correctAnswers.some(ans => ans.includes(val))) isCorrect = true;
+        if (gameState.correctAnswers.some(ans => checkEnglishMatch(val, ans))) isCorrect = true;
         correctText = gameState.correctAnswers.join(', ');
     }
     
@@ -1491,11 +1566,13 @@ function checkGameAnswer() {
         gameState.score += 10;
         document.getElementById('game-score').innerText = `Puan: ${gameState.score}`;
         input.disabled = true;
+        recordCorrectAnswer(); // We will define this helper soon
         setTimeout(nextGameQuestion, 1500);
     } else {
         feedback.innerText = `Yanlış! Doğrusu: ${correctText}`;
         feedback.className = "game-feedback game-wrong";
         input.disabled = true;
+        recordWrongWord(w, 'Oyun'); // We will define this helper soon
         setTimeout(nextGameQuestion, 2500);
     }
 }
@@ -1744,11 +1821,126 @@ function showGrammarSection() {
     showScreen('screen-grammar-list');
 }
 
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function convertDocxNodeToHtml(node) {
+    let html = "";
+    if (!node) return html;
+    
+    for (let i = 0; i < node.childNodes.length; i++) {
+        const child = node.childNodes[i];
+        const nodeName = child.nodeName;
+        const localName = child.localName || nodeName.replace(/^w:/, '');
+        
+        if (localName === 'p') {
+            const pPr = child.querySelector("pPr, w\\:pPr");
+            let alignment = "";
+            let bulletText = "";
+            
+            if (pPr) {
+                const jc = pPr.querySelector("jc, w\\:jc");
+                if (jc) {
+                    alignment = jc.getAttribute("w:val") || "";
+                }
+                const numPr = pPr.querySelector("numPr, w\\:numPr");
+                if (numPr) {
+                    bulletText = "• ";
+                }
+            }
+            
+            let style = alignment ? ` style="text-align: ${alignment};"` : '';
+            const innerHtml = convertDocxNodeToHtml(child);
+            if (innerHtml.trim().length > 0 || child.querySelector("br, w\\:br")) {
+                html += `<p${style}>${bulletText}${innerHtml}</p>`;
+            }
+        } else if (localName === 'r') {
+            const rPr = child.querySelector("rPr, w\\:rPr");
+            let text = "";
+            let styles = [];
+            
+            if (rPr) {
+                if (rPr.querySelector("b, w\\:b")) {
+                    styles.push("font-weight: bold");
+                }
+                if (rPr.querySelector("i, w\\:i")) {
+                    styles.push("font-style: italic");
+                }
+                if (rPr.querySelector("u, w\\:u")) {
+                    styles.push("text-decoration: underline");
+                }
+                const color = rPr.querySelector("color, w\\:color");
+                if (color) {
+                    let hex = color.getAttribute("w:val");
+                    if (hex && hex !== 'auto') {
+                        styles.push(`color: #${hex}`);
+                    }
+                }
+                const sz = rPr.querySelector("sz, w\\:sz");
+                if (sz) {
+                    let val = parseInt(sz.getAttribute("w:val"), 10);
+                    if (!isNaN(val)) {
+                        styles.push(`font-size: ${val / 24}rem`);
+                    }
+                }
+            }
+            
+            for (let j = 0; j < child.childNodes.length; j++) {
+                const rChild = child.childNodes[j];
+                const rLocalName = rChild.localName || rChild.nodeName.replace(/^w:/, '');
+                if (rLocalName === 't') {
+                    text += escapeHtml(rChild.textContent);
+                } else if (rLocalName === 'br') {
+                    text += "<br>";
+                } else if (rLocalName === 'tab') {
+                    text += "&nbsp;&nbsp;&nbsp;&nbsp;";
+                }
+            }
+            
+            if (styles.length > 0) {
+                html += `<span style="${styles.join('; ')}">${text}</span>`;
+            } else {
+                html += text;
+            }
+        } else if (localName === 'tbl') {
+            html += `<table class="grammar-table">${convertDocxNodeToHtml(child)}</table>`;
+        } else if (localName === 'tr') {
+            html += `<tr>${convertDocxNodeToHtml(child)}</tr>`;
+        } else if (localName === 'tc') {
+            html += `<td>${convertDocxNodeToHtml(child)}</td>`;
+        } else if (localName === 'br') {
+            html += `<br>`;
+        } else if (localName === 't') {
+            html += escapeHtml(child.textContent);
+        } else {
+            html += convertDocxNodeToHtml(child);
+        }
+    }
+    return html;
+}
+
+async function parseDocxToHtmlWithColors(file) {
+    const zip = await JSZip.loadAsync(file);
+    const docXmlStr = await zip.file("word/document.xml").async("text");
+    const parser = new DOMParser();
+    const docXml = parser.parseFromString(docXmlStr, "application/xml");
+    
+    const body = docXml.getElementsByTagName("w:body")[0];
+    if (!body) return "";
+    
+    return convertDocxNodeToHtml(body);
+}
+
 async function handleGrammarUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
     
-    // Prompt for Title first
     const { value: title } = await Swal.fire({
         title: 'Gramer Başlığı',
         input: 'text',
@@ -1772,9 +1964,7 @@ async function handleGrammarUpload(e) {
 
     showLoading("Word belgesi okunuyor...");
     try {
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.convertToHtml({arrayBuffer: arrayBuffer});
-        const htmlContent = result.value;
+        const htmlContent = await parseDocxToHtmlWithColors(file);
         
         if (!appData.grammar) appData.grammar = [];
         appData.grammar.push({
@@ -1807,6 +1997,10 @@ function openGrammarNote(noteId) {
     // Set Read Mode content
     document.getElementById('read-note-title').innerText = note.title;
     document.getElementById('grammar-detail-html').innerHTML = note.html;
+    
+    // Set Chalkboard mode
+    const detailCard = document.querySelector('.grammar-detail-card');
+    if (detailCard) detailCard.classList.add('chalkboard-mode');
     
     // Reset to Read Mode
     document.getElementById('grammar-read-mode').classList.remove('hidden');
@@ -2608,6 +2802,7 @@ function viewFlashcardList(listName) {
 }
 
 function startFlashcardTestFromView() {
+    currentStudySource = "flashcard";
     startFlashcardTestDirectly();
 }
 
@@ -2620,10 +2815,20 @@ function startFlashcardTestDirectly() {
 }
 
 function launchFlashcardTest(direction) {
-    const list = appData.flashcards[currentFlashcardListName] || [];
+    let list = [];
+    if (currentStudySource === "wrongWords") {
+        list = currentStudyList;
+    } else {
+        list = appData.flashcards[currentFlashcardListName] || [];
+    }
+    
     if (list.length === 0) {
         alertMsg("Hata", "Bu listede test edilecek kelime yok.", "error");
-        showFlashcardDashboard();
+        if (currentStudySource === "wrongWords") {
+            showStatsAndWrongWordsScreen();
+        } else {
+            showFlashcardDashboard();
+        }
         return;
     }
     
@@ -2698,19 +2903,11 @@ function flipActiveFlashcard() {
 }
 
 function checkTurkishFlashcardMatch(userInput, correctMeaning) {
-    let cleanUser = userInput.trim().toLowerCase();
-    let cleanCorrect = correctMeaning.trim().toLowerCase();
-    
-    if (cleanCorrect.includes(cleanUser) && cleanUser.length >= 2) return true;
-    
-    let parts = cleanCorrect.split(/[,;\(\)\{\}\[\]]/).map(p => p.trim().toLowerCase()).filter(p => p.length > 0);
-    return parts.some(p => p === cleanUser);
+    return checkTurkishMatch(userInput, correctMeaning);
 }
 
 function checkEnglishFlashcardMatch(userInput, correctWord) {
-    let cleanUser = userInput.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '');
-    let cleanCorrect = correctWord.trim().toLowerCase().replace(/[^a-z0-9\s]/g, '');
-    return cleanUser === cleanCorrect;
+    return checkEnglishMatch(userInput, correctWord);
 }
 
 function submitFlashcardAnswer() {
@@ -2737,6 +2934,7 @@ function submitFlashcardAnswer() {
         feedback.innerText = "Doğru! 🎉";
         feedback.className = "game-feedback game-correct";
         flashcardCorrectCount++;
+        recordCorrectAnswer();
         
         // Success Sound
         playBubblePopSound();
@@ -2746,6 +2944,7 @@ function submitFlashcardAnswer() {
     } else {
         feedback.innerText = "Yanlış! Kart Doğru Cevabı Gösteriyor...";
         feedback.className = "game-feedback game-wrong";
+        recordWrongWord(w, 'Flash Kart Sınavı');
         
         // Buzz sound
         playBubbleBuzzSound();
@@ -2777,6 +2976,7 @@ function skipFlashcardQuestion() {
     
     feedback.innerText = "Atlandı. Doğru Cevap:";
     feedback.className = "game-feedback game-wrong";
+    recordWrongWord(w, 'Flash Kart Sınavı');
     
     const cardInner = document.getElementById('flashcard-card-inner');
     if (!cardInner.classList.contains('flipped')) {
@@ -2804,7 +3004,11 @@ function nextFlashcardQuestion() {
             icon: "success",
             confirmButtonColor: themes[currentLang].primary
         }).then(() => {
-            showFlashcardDashboard();
+            if (currentStudySource === "wrongWords") {
+                showStatsAndWrongWordsScreen();
+            } else {
+                showFlashcardDashboard();
+            }
         });
     }
 }
@@ -2819,8 +3023,221 @@ function confirmEndFlashcardTest() {
         cancelButtonText: "İptal"
     }).then((result) => {
         if(result.isConfirmed) {
-            showFlashcardDashboard();
+            if (currentStudySource === "wrongWords") {
+                showStatsAndWrongWordsScreen();
+            } else {
+                showFlashcardDashboard();
+            }
         }
     });
+}
+
+// --- STATISTICS & WRONG WORDS ---
+let currentWrongWordsDate = "";
+let currentStudySource = "flashcard"; // "flashcard" or "wrongWords"
+let currentStudyList = [];
+
+async function recordCorrectAnswer() {
+    if (!appData.stats) appData.stats = { correct: 0, wrong: 0 };
+    appData.stats.correct = (appData.stats.correct || 0) + 1;
+    await saveData();
+}
+
+async function recordWrongWord(wordObj, source) {
+    if (!appData.stats) appData.stats = { correct: 0, wrong: 0 };
+    appData.stats.wrong = (appData.stats.wrong || 0) + 1;
+    
+    if (!appData.wrongWords) appData.wrongWords = {};
+    const today = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' });
+    if (!appData.wrongWords[today]) {
+        appData.wrongWords[today] = [];
+    }
+    
+    // Check if the word is already in the list for today to avoid duplicate entries
+    const exists = appData.wrongWords[today].some(w => w.word.toLowerCase() === wordObj.word.toLowerCase());
+    if (!exists) {
+        appData.wrongWords[today].push({
+            word: wordObj.word,
+            meaning: wordObj.meaning || wordObj.translation || "",
+            pronunciation: wordObj.pronunciation || "",
+            context: wordObj.context || "",
+            source: source,
+            timestamp: Date.now()
+        });
+    }
+    await saveData();
+}
+
+async function resetStats() {
+    Swal.fire({
+        title: "Emin misiniz?",
+        text: "Tüm doğru/yanlış istatistikleri sıfırlanacaktır.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Evet, Sıfırla",
+        cancelButtonText: "İptal",
+        confirmButtonColor: themes[currentLang].primary
+    }).then(async (result) => {
+        if(result.isConfirmed) {
+            appData.stats = { correct: 0, wrong: 0 };
+            await saveData();
+            showStatsAndWrongWordsScreen();
+            alertMsg("Sıfırlandı", "İstatistikler sıfırlandı.");
+        }
+    });
+}
+
+function showStatsAndWrongWordsScreen() {
+    if (!appData.stats) appData.stats = { correct: 0, wrong: 0 };
+    const correct = appData.stats.correct || 0;
+    const wrong = appData.stats.wrong || 0;
+    const total = correct + wrong;
+    const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+    
+    document.getElementById('stats-correct-count').innerText = correct;
+    document.getElementById('stats-wrong-count').innerText = wrong;
+    document.getElementById('stats-accuracy').innerText = accuracy + "%";
+    
+    renderWrongDates();
+    showScreen('screen-stats-wrong-words');
+}
+
+function renderWrongDates() {
+    const container = document.getElementById('wrong-dates-container');
+    container.innerHTML = '';
+    
+    const wrongWordsObj = appData.wrongWords || {};
+    const dates = Object.keys(wrongWordsObj).sort((a,b) => {
+        return b.localeCompare(a);
+    });
+    
+    const activeDates = dates.filter(d => wrongWordsObj[d] && wrongWordsObj[d].length > 0);
+    
+    if (activeDates.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#777;">Henüz hatalı bilinen kelime kaydedilmemiş.</p>';
+    } else {
+        activeDates.forEach(dateStr => {
+            const wordCount = wrongWordsObj[dateStr].length;
+            const div = document.createElement('div');
+            div.className = 'list-item';
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.alignItems = 'center';
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.style.flex = '1';
+            contentDiv.innerHTML = `<h3>${dateStr}</h3><span>${wordCount} Yanlış Kelime</span>`;
+            contentDiv.onclick = () => showWrongWordsOfDate(dateStr);
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-primary';
+            deleteBtn.style.background = '#e74c3c';
+            deleteBtn.style.padding = '6px 12px';
+            deleteBtn.style.fontSize = '0.85rem';
+            deleteBtn.style.borderRadius = '6px';
+            deleteBtn.style.marginLeft = '15px';
+            deleteBtn.innerText = 'Tarihi Sil';
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                deleteWrongWordDate(dateStr);
+            };
+            
+            div.appendChild(contentDiv);
+            div.appendChild(deleteBtn);
+            container.appendChild(div);
+        });
+    }
+}
+
+function showWrongWordsOfDate(dateStr) {
+    currentWrongWordsDate = dateStr;
+    document.getElementById('wrong-words-date-title').innerText = `${dateStr} Yanlışları`;
+    
+    renderWrongWordsList();
+    showScreen('screen-wrong-words-study');
+}
+
+function renderWrongWordsList() {
+    const listContainer = document.getElementById('wrong-words-list');
+    listContainer.innerHTML = '';
+    
+    const list = appData.wrongWords[currentWrongWordsDate] || [];
+    list.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.className = 'word-row';
+        li.style.display = 'flex';
+        li.style.justifyContent = 'space-between';
+        li.style.alignItems = 'center';
+        
+        const leftDiv = document.createElement('div');
+        leftDiv.innerHTML = `<span class="word-main">${item.word}</span> <span class="word-meaning">${item.meaning}</span> <span style="font-size:0.8rem; color:#999; margin-left: 10px;">(${item.source || ''})</span>`;
+        
+        const btnGroup = document.createElement('div');
+        btnGroup.style.display = 'flex';
+        btnGroup.style.gap = '8px';
+        
+        const audioBtn = document.createElement('button');
+        audioBtn.className = 'btn-audio-mini';
+        audioBtn.innerHTML = '🔊';
+        audioBtn.onclick = () => speakWord(item.word);
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn-primary';
+        deleteBtn.style.background = '#e74c3c';
+        deleteBtn.style.padding = '6px 12px';
+        deleteBtn.style.fontSize = '0.85rem';
+        deleteBtn.style.borderRadius = '6px';
+        deleteBtn.innerText = 'Sil';
+        deleteBtn.onclick = () => deleteWrongWord(currentWrongWordsDate, item.word);
+        
+        btnGroup.appendChild(audioBtn);
+        btnGroup.appendChild(deleteBtn);
+        
+        li.appendChild(leftDiv);
+        li.appendChild(btnGroup);
+        listContainer.appendChild(li);
+    });
+}
+
+function deleteWrongWord(dateStr, wordText) {
+    if (!appData.wrongWords || !appData.wrongWords[dateStr]) return;
+    
+    appData.wrongWords[dateStr] = appData.wrongWords[dateStr].filter(w => w.word.toLowerCase() !== wordText.toLowerCase());
+    saveData().then(() => {
+        renderWrongWordsList();
+        renderWrongDates();
+    });
+}
+
+function deleteWrongWordDate(dateStr) {
+    Swal.fire({
+        title: "Emin misiniz?",
+        text: `"${dateStr}" tarihindeki tüm yanlış kelimeler silinecektir.`,
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Evet, Sil",
+        cancelButtonText: "İptal",
+        confirmButtonColor: themes[currentLang].primary
+    }).then(async (result) => {
+        if(result.isConfirmed) {
+            delete appData.wrongWords[dateStr];
+            await saveData();
+            renderWrongDates();
+            alertMsg("Silindi", "Tarih ve kelimeler silindi.");
+        }
+    });
+}
+
+function startWrongWordsStudy() {
+    const list = appData.wrongWords[currentWrongWordsDate] || [];
+    if (list.length === 0) {
+        alertMsg("Hata", "Bu listede çalışılacak kelime yok.", "error");
+        return;
+    }
+    
+    currentStudySource = "wrongWords";
+    currentStudyList = list;
+    
+    startFlashcardTestDirectly();
 }
 

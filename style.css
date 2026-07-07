@@ -932,3 +932,101 @@ h1, h2, h3, h4 {
     40%, 80% { transform: translateX(8px); }
 }
 
+/* Chalkboard Design & Stats UI */
+.grammar-detail-card.chalkboard-mode {
+    background-color: #1a4329 !important; /* Chalkboard green */
+    background-image: 
+        radial-gradient(circle at 50% 50%, rgba(40, 96, 62, 0.4) 0%, rgba(20, 50, 32, 0.4) 100%),
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0px, rgba(255, 255, 255, 0.02) 1px, transparent 1px, transparent 10px) !important;
+    border: 12px solid #5a3825 !important; /* Wooden frame */
+    border-radius: 8px !important;
+    color: #f1f5f2 !important;
+    font-family: 'Patrick Hand', 'Architects Daughter', 'Comic Sans MS', cursive, sans-serif !important;
+    box-shadow: 
+        inset 0 0 20px rgba(0, 0, 0, 0.7),
+        0 8px 16px rgba(0, 0, 0, 0.4) !important;
+}
+
+.grammar-detail-card.chalkboard-mode #read-note-title {
+    color: #ffe66d !important; /* Chalky yellow title */
+    font-family: 'Architects Daughter', cursive, sans-serif !important;
+    text-shadow: 0 0 2px rgba(255, 230, 109, 0.5) !important;
+    border-bottom: 2px dashed rgba(255, 255, 255, 0.2);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    font-size: 1.8rem;
+}
+
+.grammar-detail-card.chalkboard-mode .grammar-html-content {
+    color: #f1f5f2; /* Default chalk white, no important so spans can override it */
+    font-family: 'Patrick Hand', cursive, sans-serif !important;
+    font-size: 1.25rem !important;
+    line-height: 1.8 !important;
+}
+
+.grammar-detail-card.chalkboard-mode .grammar-html-content p,
+.grammar-detail-card.chalkboard-mode .grammar-html-content div {
+    text-shadow: 0 0 1px rgba(255, 255, 255, 0.3), 0 0 2px rgba(255, 255, 255, 0.2);
+    margin-bottom: 15px;
+}
+
+.grammar-detail-card.chalkboard-mode table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-family: 'Patrick Hand', cursive, sans-serif !important;
+}
+
+.grammar-detail-card.chalkboard-mode th,
+.grammar-detail-card.chalkboard-mode td {
+    border: 2px dashed rgba(255, 255, 255, 0.3) !important;
+    padding: 10px;
+    text-align: left;
+    color: #f1f5f2;
+    text-shadow: 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+.grammar-detail-card.chalkboard-mode th {
+    color: #74b9ff !important; /* Light blue chalk */
+    font-family: 'Architects Daughter', cursive, sans-serif !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.grammar-detail-card.chalkboard-mode tr:nth-child(even) {
+    background-color: rgba(255, 255, 255, 0.03) !important;
+}
+
+.grammar-detail-card.chalkboard-mode ul,
+.grammar-detail-card.chalkboard-mode ol {
+    margin-left: 25px;
+    margin-bottom: 15px;
+}
+
+.grammar-detail-card.chalkboard-mode li {
+    margin-bottom: 6px;
+    text-shadow: 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+/* Stats panel additions */
+.stats-panel {
+    border-left: 6px solid var(--primary-color);
+    transition: transform 0.2s;
+}
+.stats-panel:hover {
+    transform: translateY(-2px);
+}
+
+/* Chalk style inputs when editing in chalkboard-mode */
+.grammar-detail-card.chalkboard-mode .game-input {
+    background: #112d1b;
+    border: 2px dashed rgba(255,255,255,0.4);
+    color: #ffe66d;
+    font-family: 'Patrick Hand', cursive, sans-serif;
+}
+.grammar-detail-card.chalkboard-mode textarea {
+    background: #112d1b;
+    border: 2px dashed rgba(255,255,255,0.4) !important;
+    color: #f1f5f2 !important;
+    font-family: 'Patrick Hand', cursive, sans-serif !important;
+}
+
