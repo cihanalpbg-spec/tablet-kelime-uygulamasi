@@ -114,6 +114,20 @@
                             </div>
                             <h2>Rusça</h2>
                         </div>
+                        <div class="lang-card japanese" onclick="selectLanguage('japanese')">
+                            <div class="lang-icon">
+                                <svg viewBox="0 0 100 100" width="80" height="80">
+                                    <clipPath id="circle-clip-jp">
+                                        <circle cx="50" cy="50" r="50" />
+                                    </clipPath>
+                                    <g clip-path="url(#circle-clip-jp)">
+                                        <rect width="100" height="100" fill="#ffffff"/>
+                                        <circle cx="50" cy="50" r="28" fill="#bc002d"/>
+                                    </g>
+                                </svg>
+                            </div>
+                            <h2>Japonca</h2>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -141,6 +155,31 @@
             </div>
 
             <div class="dashboard-grid">
+                <!-- Japanese Specific Cards -->
+                <div class="dash-card japanese-only view-writing hidden" onclick="showWritingPractice()" style="border: 2px solid var(--accent); background: rgba(255, 240, 245, 0.9);">
+                    <h3>✏️ Harf Yazım Pratiği</h3>
+                    <p>Hiragana, Katakana ve Kanji harflerini fırça çizgilerine göre çizim tuvalinde çalışın.</p>
+                </div>
+                <div class="dash-card japanese-only view-memory hidden" onclick="showMemoryCards()" style="border: 2px solid var(--accent); background: rgba(255, 240, 245, 0.9);">
+                    <h3>🧠 Görsel Hafıza Kartları</h3>
+                    <p>Kitaptaki tüm eğlenceli hikayeler ve çağrışımlarla harfleri kolayca ezberleyin.</p>
+                </div>
+                <div class="dash-card japanese-only view-matrix hidden" onclick="showMatrixExercises()" style="border: 2px solid var(--accent); background: rgba(255, 240, 245, 0.9);">
+                    <h3>🧩 Matris Alıştırma Odası</h3>
+                    <p>Kitaptaki 4x5'lik okuma ve yazma matris alıştırmalarını doldurun.</p>
+                </div>
+                <div class="dash-card japanese-only view-matching hidden" onclick="showMatchingGame()" style="border: 2px solid var(--accent); background: rgba(255, 240, 245, 0.9);">
+                    <h3>🤝 Harf Eşleştirme Oyunu</h3>
+                    <p>5 rastgele Japonca harfi Latin okunuşlarıyla eşleştirerek yarışın.</p>
+                </div>
+                <div class="dash-card japanese-only view-writing-quiz hidden" onclick="showWritingQuiz()" style="border: 2px solid var(--accent); background: rgba(255, 240, 245, 0.9);">
+                    <h3>🔄 Yazım & Çizim Sınavı</h3>
+                    <p>Sol tarafta harf gösterip sağa okunuş yazın veya okunuş gösterip harfi çizin.</p>
+                </div>
+                <div class="dash-card japanese-only view-alphabet-test hidden" onclick="showAlphabetTest()" style="border: 2px solid var(--accent); background: rgba(255, 240, 245, 0.9);">
+                    <h3>✍️ Alfabe Test Merkezi</h3>
+                    <p>Hiragana, Katakana veya Kanji harflerinden oluşan çoktan seçmeli sınavlara girin.</p>
+                </div>
                 <div class="dash-card upload-word">
                     <h3>Kelime Listesi Yükle</h3>
                     <p>Word belgesinden (.docx) yeni kelimeler ekleyin.</p>
@@ -688,12 +727,285 @@
         <img src="gelistirici.png" style="width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-right: 6px; object-fit: cover; border: 1px solid rgba(74, 111, 165, 0.3);">Geliştirici: Dr. Bahadır Murat ÇAKMAKLI
     </div>
 
-    <!-- Loading Overlay -->
+    
+        <!-- Screen JP1: Japanese Writing Practice -->
+        <section id="screen-japanese-writing" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>Harf Yazım Pratiği</h1>
+                <div></div>
+            </header>
+            <div class="content-area">
+                <div class="japanese-writing-layout">
+                    <!-- Left Column: Character Details -->
+                    <div class="writing-char-card">
+                        <div class="writing-selectors">
+                            <button class="btn-sub-tab active" onclick="setWritingMode('hiragana')">Hiragana</button>
+                            <button class="btn-sub-tab" onclick="setWritingMode('katakana')">Katakana</button>
+                            <button class="btn-sub-tab" onclick="setWritingMode('kanji')">Kanji</button>
+                        </div>
+                        <div class="char-display-box">
+                            <span id="writing-char-large">あ</span>
+                            <span id="writing-char-romaji">a</span>
+                        </div>
+                        <div class="char-details-box">
+                            <p><strong>Fırça Sayısı:</strong> <span id="writing-char-strokes">3</span></p>
+                            <p id="writing-char-meaning-block" class="hidden"><strong>Anlamı:</strong> <span id="writing-char-meaning">Bir</span></p>
+                            <p><strong>Çağrışım:</strong> <span id="writing-char-assoc">Anten</span></p>
+                            <p id="writing-char-story" class="char-story-text">Kafasında anteni olan A harfi...</p>
+                        </div>
+                        <div class="writing-navigation">
+                            <button class="btn-primary" onclick="prevWritingChar()">🡄 Önceki</button>
+                            <span id="writing-char-index">1 / 46</span>
+                            <button class="btn-primary" onclick="nextWritingChar()">Sonraki 🡆</button>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Tracing / Writing Canvas -->
+                    <div class="writing-canvas-panel">
+                        <h3>Çizim Tuvali</h3>
+                        <div class="canvas-container">
+                            <canvas id="writing-canvas" width="400" height="400"></canvas>
+                            <div class="canvas-grid-lines" id="canvas-grid-lines">
+                                <div class="grid-line-h"></div>
+                                <div class="grid-line-v"></div>
+                            </div>
+                        </div>
+                        <div class="canvas-controls">
+                            <button class="btn-primary btn-danger" onclick="clearWritingCanvas()">Temizle</button>
+                            <button class="btn-primary" id="btn-toggle-grid" onclick="toggleCanvasGrid()">Izgarayı Gizle</button>
+                            <div class="brush-settings">
+                                <label>Kalınlık:
+                                    <input type="range" id="brush-thickness" min="4" max="20" value="8" onchange="updateBrushThickness(this.value)">
+                                </label>
+                            </div>
+                            <div class="color-picker-simple">
+                                <div class="color-dot active" style="background: #2c3e50;" onclick="setBrushColor('#2c3e50', this)"></div>
+                                <div class="color-dot" style="background: #e74c3c;" onclick="setBrushColor('#e74c3c', this)"></div>
+                                <div class="color-dot" style="background: #2ecc71;" onclick="setBrushColor('#2ecc71', this)"></div>
+                                <div class="color-dot" style="background: #3498db;" onclick="setBrushColor('#3498db', this)"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen JP2: Memory Cards -->
+        <section id="screen-japanese-memory" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>Görsel Hafıza Kartları</h1>
+                <div></div>
+            </header>
+            <div class="content-area">
+                <div class="memory-selectors">
+                    <button class="btn-sub-tab active" onclick="setMemoryMode('hiragana')">Hiragana</button>
+                    <button class="btn-sub-tab" onclick="setMemoryMode('katakana')">Katakana</button>
+                    <button class="btn-sub-tab" onclick="setMemoryMode('kanji')">Kanji</button>
+                </div>
+                <div class="memory-grid" id="memory-grid-container">
+                    <!-- Cards injected dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen JP3: Matrix Exercises -->
+        <section id="screen-japanese-matrix" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>Matris Alıştırma Odası</h1>
+                <div></div>
+            </header>
+            <div class="content-area">
+                <div class="matrix-selectors">
+                    <button class="btn-sub-tab active" onclick="setMatrixType('reading')">1) Okuma Matrisi (Harf -> Romaji)</button>
+                    <button class="btn-sub-tab" onclick="setMatrixType('writing')">2) Yazma Matrisi (Romaji -> Harf)</button>
+                </div>
+                <div class="matrix-layout-container">
+                    <!-- Left: Reference Grid -->
+                    <div class="matrix-box">
+                        <h3 id="matrix-left-title">Sorular Matrisi</h3>
+                        <div class="matrix-grid-display" id="matrix-source-grid"></div>
+                    </div>
+                    <!-- Right: User Answer Grid -->
+                    <div class="matrix-box">
+                        <h3 id="matrix-right-title">Cevaplarınız</h3>
+                        <div class="matrix-grid-display" id="matrix-target-grid"></div>
+                    </div>
+                </div>
+                <div class="matrix-footer-controls">
+                    <button class="btn-primary" onclick="generateMatrixExercise()">Yeni Matris Oluştur</button>
+                    <span id="matrix-score-info">Puan: 0 / 20</span>
+                </div>
+            </div>
+            <!-- Matrix Keypad Popup Modal -->
+            <div id="matrix-keypad-modal" class="modal-overlay hidden">
+                <div class="modal-content text-center">
+                    <h3>Doğru Harfi / Okunuşu Seçin</h3>
+                    <div class="keypad-options-grid" id="keypad-options-container"></div>
+                    <button class="btn-primary" style="margin-top: 15px; background: #95a5a6;" onclick="closeMatrixKeypad()">İptal</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen JP4: Alphabet Matching Game -->
+        <section id="screen-japanese-matching" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>Harf Eşleştirme Oyunu</h1>
+                <div></div>
+            </header>
+            <div class="content-area text-center">
+                <div class="matching-tab-selector">
+                    <button class="btn-sub-tab active" onclick="setMatchingMode('hiragana')">Hiragana</button>
+                    <button class="btn-sub-tab" onclick="setMatchingMode('katakana')">Katakana</button>
+                    <button class="btn-sub-tab" onclick="setMatchingMode('kanji')">Kanji</button>
+                </div>
+                <p style="margin-top: 10px; color: var(--text-light);">Japonca karakteri seçin, ardından doğru Latin okunuşunu seçerek eşleştirin.</p>
+                <div class="matching-game-layout">
+                    <div class="matching-column" id="matching-chars-column"></div>
+                    <div class="matching-column" id="matching-romaji-column"></div>
+                </div>
+                <div id="matching-success-message" class="hidden">
+                    <h3 style="color: var(--success); margin: 15px 0;">Tebrikler! Tüm harfleri doğru eşleştirdiniz! 🎉</h3>
+                    <button class="btn-primary" onclick="startMatchingGameRound()">Yeni Harflerle Oyna</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen JP5: Writing & Drawing Quiz -->
+        <section id="screen-japanese-quiz" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>Yazım & Çizim Sınavı</h1>
+                <div></div>
+            </header>
+            <div class="content-area text-center">
+                <div class="quiz-mode-selectors" id="quiz-init-view">
+                    <h3>Sınav Modunu Seçin</h3>
+                    <div style="display: flex; gap: 20px; justify-content: center; margin-top: 20px;">
+                        <button class="btn-primary" style="padding: 20px; font-size: 1.1rem;" onclick="startJpQuiz('reading')">📖 Okuma Sınavı<br><small>(Harf Gösterip Latin Yazma)</small></button>
+                        <button class="btn-primary" style="padding: 20px; font-size: 1.1rem; background: #9b59b6;" onclick="startJpQuiz('drawing')">🎨 Çizim Sınavı<br><small>(Latin Gösterip Tuvalde Çizme)</small></button>
+                    </div>
+                </div>
+
+                <div id="quiz-active-view" class="hidden">
+                    <div class="jp-quiz-layout">
+                        <!-- Left Panel: Question -->
+                        <div class="quiz-question-box">
+                            <span id="quiz-progress-text">Soru 1 / 10</span>
+                            <div class="quiz-prompt-card">
+                                <span id="quiz-question-prompt">あ</span>
+                                <p id="quiz-question-subtext">Bu harfin Latin alfabesindeki karşılığını yazın:</p>
+                            </div>
+                            
+                            <!-- Mode 1: Text Input -->
+                            <div id="quiz-input-container" class="hidden">
+                                <input type="text" id="quiz-text-answer" placeholder="Romaji okunuşunu yazın (örn: a)" onkeydown="if(event.key==='Enter') submitJpQuizAnswer()">
+                                <button class="btn-primary" onclick="submitJpQuizAnswer()" style="margin-top: 10px; width: 100%;">Cevabı Kontrol Et</button>
+                            </div>
+
+                            <!-- Mode 2: Drawing Quiz Action -->
+                            <div id="quiz-draw-actions" class="hidden">
+                                <button class="btn-primary" onclick="finishDrawingQuiz()" style="width: 100%;">Çizimi Bitir & Karşılaştır</button>
+                            </div>
+                            
+                            <div id="quiz-feedback-box" class="quiz-feedback hidden">
+                                <span id="quiz-feedback-icon">✅</span>
+                                <h4 id="quiz-feedback-title">Doğru!</h4>
+                                <p id="quiz-feedback-story">Hikaye buraya gelecek...</p>
+                                <button class="btn-primary" id="btn-quiz-next" onclick="nextJpQuizQuestion()" style="margin-top: 15px; width: 100%;">Sonraki Soru</button>
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: Canvas for Drawing Mode -->
+                        <div class="quiz-canvas-box hidden" id="quiz-canvas-panel">
+                            <h3>Çizim Alanı</h3>
+                            <div class="canvas-container" style="margin: 0 auto;">
+                                <canvas id="quiz-canvas" width="350" height="350"></canvas>
+                                <div class="canvas-grid-lines">
+                                    <div class="grid-line-h"></div>
+                                    <div class="grid-line-v"></div>
+                                </div>
+                                <canvas id="quiz-ref-canvas" width="350" height="350" class="hidden" style="position: absolute; top:0; left:0; pointer-events: none; opacity: 0.35;"></canvas>
+                            </div>
+                            <button class="btn-primary btn-danger" onclick="clearQuizCanvas()" style="margin-top: 10px;">Çizimi Temizle</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="quiz-result-view" class="hidden">
+                    <h2 style="color: var(--primary-color);">Sınav Tamamlandı!</h2>
+                    <h3 style="margin: 20px 0;" id="quiz-score-text">Skor: 8 / 10 Doğru</h3>
+                    <button class="btn-primary" onclick="restartJpQuiz()">Yeniden Başlat</button>
+                    <button class="btn-primary" style="background: #95a5a6; margin-left: 10px;" onclick="goBack('screen-dashboard')">Kontrol Paneline Dön</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen JP6: Alphabet Test Center (4 Choice Quiz) -->
+        <section id="screen-japanese-alphabet-test" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="confirmEndJpAlphabetTest()">⟵ Testten Çık</button>
+                <h1>Alfabe Test Merkezi</h1>
+                <div id="jp-test-progress">1 / 10</div>
+            </header>
+            <div class="content-area">
+                <div id="jp-test-setup-view" class="text-center">
+                    <h3>Test Seçenekleri</h3>
+                    <div style="max-width: 400px; margin: 20px auto; text-align: left;">
+                        <label style="display:block; margin-bottom: 10px; font-weight:600;">Sınav Alfabesi:
+                            <select id="jp-test-setup-alphabet" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ccc; font-size:1rem; margin-top:5px; background:white;">
+                                <option value="hiragana">Hiragana Karakterleri</option>
+                                <option value="katakana">Katakana Karakterleri</option>
+                                <option value="kanji">Temel Kanji Karakterleri</option>
+                                <option value="mix">Karışık (Hepsi)</option>
+                            </select>
+                        </label>
+                        <label style="display:block; margin-bottom: 15px; font-weight:600;">Soru Sayısı:
+                            <select id="jp-test-setup-count" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ccc; font-size:1rem; margin-top:5px; background:white;">
+                                <option value="10">10 Soru</option>
+                                <option value="20">20 Soru</option>
+                                <option value="all">Tüm Alfabe</option>
+                            </select>
+                        </label>
+                        <button class="btn-primary" style="width:100%; padding:12px; font-size:1.1rem;" onclick="startJpAlphabetTest()">Testi Başlat</button>
+                    </div>
+                </div>
+
+                <div id="jp-test-active-view" class="hidden">
+                    <div class="content-area test-area" style="padding-top: 0;">
+                        <div id="jp-test-question-container" class="question-container">
+                            <!-- Question and 4 choices generated dynamically -->
+                        </div>
+                        <div id="jp-test-feedback" class="test-feedback hidden" style="margin-top:15px; padding:15px; border-radius:10px; background:rgba(255,255,255,0.9); border-left: 5px solid var(--primary-color);">
+                            <strong>İpucu / Hafıza Yöntemi:</strong>
+                            <p id="jp-test-feedback-text" style="margin-top:5px; font-size:0.95rem; line-height:1.4; color:var(--text-main);"></p>
+                        </div>
+                        <div class="test-controls" style="margin-top: 15px;">
+                            <button id="btn-next-jp-question" class="btn-primary" style="display: none;" onclick="nextJpAlphabetQuestion()">Sonraki Soru</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="jp-test-result-view" class="hidden text-center">
+                    <h2 style="color: var(--primary-color); margin-top:30px;">Test Tamamlandı!</h2>
+                    <h3 style="margin: 20px 0;" id="jp-test-score-text">10 sorudan 8 doğru, 2 yanlış yaptınız.</h3>
+                    <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px;">
+                        <button class="btn-primary" onclick="restartJpAlphabetTest()">Yeniden Başlat</button>
+                        <button class="btn-primary" style="background: #95a5a6;" onclick="goBack('screen-dashboard')">Kontrol Paneline Dön</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+<!-- Loading Overlay -->
     <div id="loading-overlay" class="hidden">
         <div class="spinner"></div>
         <p id="loading-text">İşleniyor...</p>
     </div>
 
+    <script src="japanese_data.js"></script>
     <script src="app.js"></script>
     <script>
         if ('serviceWorker' in navigator) {

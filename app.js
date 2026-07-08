@@ -25,6 +25,7 @@ let gameState = {
 
 // Language Themes
 const themes = {
+    japanese: { gradient: 'linear-gradient(135deg, #ffe5ec 0%, #ffc2d1 100%)', primary: '#ff4d6d' },
     english: { gradient: 'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)', primary: '#6a5af9' },
     spanish: { gradient: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)', primary: '#e17055' },
     italian: { gradient: 'linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%)', primary: '#00b894' },
@@ -70,7 +71,7 @@ async function selectLanguage(lang) {
     currentLang = lang;
     document.body.style.background = themes[lang].gradient;
     
-    const titles = { english: 'İngilizce', spanish: 'İspanyolca', italian: 'İtalyanca', russian: 'Rusça' };
+    const titles = { english: 'İngilizce', spanish: 'İspanyolca', italian: 'İtalyanca', russian: 'Rusça', japanese: 'Japonca' };
     document.getElementById('current-lang-title').innerText = titles[lang] + " Merkezi";
     
     // Load Data
@@ -105,6 +106,16 @@ async function selectLanguage(lang) {
     
     // Check for Spaced Repetition reviews
     checkDailyReviews();
+    
+    
+    // Toggle Japanese specific dashboard cards
+    document.querySelectorAll('.japanese-only').forEach(elem => {
+        if (currentLang === 'japanese') {
+            elem.classList.remove('hidden');
+        } else {
+            elem.classList.add('hidden');
+        }
+    });
     
     showScreen('screen-dashboard');
 }
@@ -1800,7 +1811,7 @@ function handleBubbleClick(bubbleEl) {
 
 // --- GRAMMAR MODULE ---
 function showGrammarSection() {
-    const titles = { english: 'İngilizce', spanish: 'İspanyolca', italian: 'İtalyanca', russian: 'Rusça' };
+    const titles = { english: 'İngilizce', spanish: 'İspanyolca', italian: 'İtalyanca', russian: 'Rusça', japanese: 'Japonca' };
     document.getElementById('grammar-lang-title').innerText = titles[currentLang] + " Gramer Konuları";
     
     const container = document.getElementById('grammar-list-container');
@@ -3241,3 +3252,814 @@ function startWrongWordsStudy() {
     startFlashcardTestDirectly();
 }
 
+
+// ==========================================
+// JAPONCA (JAPANESE) MODÜLÜ EK FONKSİYONLARI
+// ==========================================
+
+let writingCanvas, writingCtx;
+let isDrawing = false;
+let lastX = 0, lastY = 0;
+let brushColor = '#2c3e50';
+let brushSize = 8;
+let isGridVisible = true;
+let currentWritingAlphabet = 'hiragana';
+let currentWritingIndex = 0;
+
+function showWritingPractice() {
+    showScreen('screen-japanese-writing');
+    initWritingCanvas();
+    loadWritingChar();
+}
+
+function initWritingCanvas() {
+    writingCanvas = document.getElementById('writing-canvas');
+    if (!writingCanvas) return;
+    writingCtx = writingCanvas.getContext('2d');
+    setupCanvasListeners(writingCanvas, writingCtx);
+    clearWritingCanvas();
+}
+
+function setupCanvasListeners(canvas, ctx) {
+    // Mouse Events
+    canvas.onmousedown = (e) => startDrawing(e, canvas, ctx);
+    canvas.onmousemove = (e) => draw(e, canvas, ctx);
+    canvas.onmouseup = () => stopDrawing();
+    canvas.onmouseleave = () => stopDrawing();
+    
+    // Touch Events (Tablet Stylus/Touch Support)
+    canvas.ontouchstart = (e) => {
+        e.preventDefault();
+        const t = e.touches[0];
+        startDrawing(t, canvas, ctx);
+    };
+    canvas.ontouchmove = (e) => {
+        e.preventDefault();
+        const t = e.touches[0];
+        draw(t, canvas, ctx);
+    };
+    canvas.ontouchend = () => stopDrawing();
+}
+
+function startDrawing(e, canvas, ctx) {
+    isDrawing = true;
+    const rect = canvas.getBoundingClientRect();
+    lastX = e.clientX - rect.left;
+    lastY = e.clientY - rect.top;
+    
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, brushSize / 2, 0, Math.PI * 2);
+    ctx.fillStyle = brushColor;
+    ctx.fill();
+}
+
+function draw(e, canvas, ctx) {
+    if (!isDrawing) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(x, y);
+    ctx.strokeStyle = brushColor;
+    ctx.lineWidth = brushSize;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    
+    lastX = x;
+    lastY = y;
+}
+
+function stopDrawing() {
+    isDrawing = false;
+}
+
+function clearWritingCanvas() {
+    if (writingCtx && writingCanvas) {
+        writingCtx.clearRect(0, 0, writingCanvas.width, writingCanvas.height);
+    }
+}
+
+function toggleCanvasGrid() {
+    isGridVisible = !isGridVisible;
+    const grid = document.getElementById('canvas-grid-lines');
+    const btn = document.getElementById('btn-toggle-grid');
+    if (isGridVisible) {
+        grid.classList.remove('hidden');
+        btn.innerText = 'Izgarayı Gizle';
+    } else {
+        grid.classList.add('hidden');
+        btn.innerText = 'Izgarayı Göster';
+    }
+}
+
+function updateBrushThickness(val) {
+    brushSize = parseInt(val);
+}
+
+function setBrushColor(color, element) {
+    brushColor = color;
+    document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+    element.classList.add('active');
+}
+
+function setWritingMode(mode) {
+    currentWritingAlphabet = mode;
+    currentWritingIndex = 0;
+    document.querySelectorAll('#screen-japanese-writing .btn-sub-tab').forEach(b => {
+        if (b.innerText.toLowerCase() === mode) b.classList.add('active');
+        else b.classList.remove('active');
+    });
+    loadWritingChar();
+}
+
+function loadWritingChar() {
+    const list = JAPANESE_DATABASE[currentWritingAlphabet];
+    if (!list || list.length === 0) return;
+    const item = list[currentWritingIndex];
+    
+    document.getElementById('writing-char-large').innerText = item.char;
+    document.getElementById('writing-char-romaji').innerText = item.romaji;
+    document.getElementById('writing-char-strokes').innerText = item.strokeCount;
+    document.getElementById('writing-char-assoc').innerText = item.association || 'Yok';
+    document.getElementById('writing-char-story').innerText = item.memoryText || '';
+    document.getElementById('writing-char-index').innerText = `${currentWritingIndex + 1} / ${list.length}`;
+    
+    const meaningBlock = document.getElementById('writing-char-meaning-block');
+    if (currentWritingAlphabet === 'kanji') {
+        meaningBlock.classList.remove('hidden');
+        document.getElementById('writing-char-meaning').innerText = item.meaning;
+    } else {
+        meaningBlock.classList.add('hidden');
+    }
+    clearWritingCanvas();
+}
+
+function prevWritingChar() {
+    const list = JAPANESE_DATABASE[currentWritingAlphabet];
+    currentWritingIndex = (currentWritingIndex - 1 + list.length) % list.length;
+    loadWritingChar();
+}
+
+function nextWritingChar() {
+    const list = JAPANESE_DATABASE[currentWritingAlphabet];
+    currentWritingIndex = (currentWritingIndex + 1) % list.length;
+    loadWritingChar();
+}
+
+// 🧠 HAFIZA KARTLARI
+let currentMemoryAlphabet = 'hiragana';
+
+function showMemoryCards() {
+    showScreen('screen-japanese-memory');
+    setMemoryMode('hiragana');
+}
+
+function setMemoryMode(mode) {
+    currentMemoryAlphabet = mode;
+    document.querySelectorAll('#screen-japanese-memory .btn-sub-tab').forEach(b => {
+        if (b.innerText.toLowerCase() === mode) b.classList.add('active');
+        else b.classList.remove('active');
+    });
+    loadMemoryCards();
+}
+
+function loadMemoryCards() {
+    const container = document.getElementById('memory-grid-container');
+    if (!container) return;
+    container.innerHTML = '';
+    const list = JAPANESE_DATABASE[currentMemoryAlphabet];
+    if (!list) return;
+    
+    list.forEach((item, index) => {
+        const card = document.createElement('div');
+        card.className = 'flip-card';
+        card.onclick = () => card.classList.toggle('flipped');
+        
+        let frontContent = `
+            <div class="flip-card-front">
+                <div class="card-char">${item.char}</div>
+                <div class="card-romaji">${item.romaji}</div>
+            </div>
+        `;
+        
+        let backContent = `
+            <div class="flip-card-back">
+                <strong>${item.char} (${item.romaji})</strong>
+                ${currentMemoryAlphabet === 'kanji' ? `<p><strong>Anlamı:</strong> ${item.meaning}</p>` : ''}
+                <p class="memory-assoc">💡 ${item.association || ''}</p>
+                <p class="memory-text">${item.memoryText || ''}</p>
+            </div>
+        `;
+        
+        card.innerHTML = `
+            <div class="flip-card-inner">
+                ${frontContent}
+                ${backContent}
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+// 🧩 MATRİS ALIŞTIRMALARI
+let currentMatrixType = 'reading'; 
+let matrixQuestions = []; 
+let matrixUserAnswers = []; 
+let selectedMatrixIndex = -1;
+
+function showMatrixExercises() {
+    showScreen('screen-japanese-matrix');
+    setMatrixType('reading');
+}
+
+function setMatrixType(type) {
+    currentMatrixType = type;
+    document.querySelectorAll('#screen-japanese-matrix .btn-sub-tab').forEach(b => {
+        if (type === 'reading' && b.innerText.includes('Okuma')) b.classList.add('active');
+        else if (type === 'writing' && b.innerText.includes('Yazma')) b.classList.add('active');
+        else b.classList.remove('active');
+    });
+    generateMatrixExercise();
+}
+
+function generateMatrixExercise() {
+    const list = JAPANESE_DATABASE.hiragana.filter(h => h.romaji.length <= 3 && !h.char.includes('が') && !h.char.includes('ぱ'));
+    matrixQuestions = [];
+    matrixUserAnswers = Array(20).fill('');
+    
+    for (let i = 0; i < 20; i++) {
+        const rand = list[Math.floor(Math.random() * list.length)];
+        matrixQuestions.push(rand);
+    }
+    
+    renderMatrixGrids();
+    updateMatrixScore();
+}
+
+function renderMatrixGrids() {
+    const sourceGrid = document.getElementById('matrix-source-grid');
+    const targetGrid = document.getElementById('matrix-target-grid');
+    if (!sourceGrid || !targetGrid) return;
+    
+    sourceGrid.innerHTML = '';
+    targetGrid.innerHTML = '';
+    
+    matrixQuestions.forEach((item, index) => {
+        const srcCell = document.createElement('div');
+        srcCell.className = 'matrix-cell';
+        if (currentMatrixType === 'reading') {
+            srcCell.innerText = item.char;
+        } else {
+            srcCell.innerText = item.romaji;
+        }
+        sourceGrid.appendChild(srcCell);
+        
+        const tgtCell = document.createElement('div');
+        tgtCell.className = 'matrix-cell empty';
+        tgtCell.id = `matrix-target-cell-${index}`;
+        tgtCell.onclick = () => openMatrixKeypad(index);
+        
+        if (matrixUserAnswers[index]) {
+            tgtCell.innerText = matrixUserAnswers[index];
+            tgtCell.classList.remove('empty');
+            
+            const isCorrect = validateMatrixCell(index);
+            if (isCorrect) {
+                tgtCell.classList.add('correct');
+            } else {
+                tgtCell.classList.add('wrong');
+            }
+        }
+        targetGrid.appendChild(tgtCell);
+    });
+}
+
+function validateMatrixCell(index) {
+    const q = matrixQuestions[index];
+    const ans = matrixUserAnswers[index];
+    if (currentMatrixType === 'reading') {
+        return ans.toLowerCase().trim() === q.romaji.toLowerCase().trim();
+    } else {
+        return ans === q.char;
+    }
+}
+
+function openMatrixKeypad(index) {
+    selectedMatrixIndex = index;
+    const modal = document.getElementById('matrix-keypad-modal');
+    const container = document.getElementById('keypad-options-container');
+    if (!modal || !container) return;
+    container.innerHTML = '';
+    
+    const correctItem = matrixQuestions[index];
+    let options = [correctItem];
+    
+    const pool = JAPANESE_DATABASE.hiragana.filter(h => h.romaji.length <= 3 && !h.char.includes('が') && !h.char.includes('ぱ'));
+    
+    while (options.length < 8) {
+        const rand = pool[Math.floor(Math.random() * pool.length)];
+        if (!options.some(o => o.char === rand.char)) {
+            options.push(rand);
+        }
+    }
+    
+    options.sort(() => Math.random() - 0.5);
+    
+    options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'keypad-btn';
+        if (currentMatrixType === 'reading') {
+            btn.innerText = opt.romaji;
+            btn.onclick = () => selectMatrixKeypadValue(opt.romaji);
+        } else {
+            btn.innerText = opt.char;
+            btn.onclick = () => selectMatrixKeypadValue(opt.char);
+        }
+        container.appendChild(btn);
+    });
+    
+    modal.classList.remove('hidden');
+}
+
+function selectMatrixKeypadValue(val) {
+    matrixUserAnswers[selectedMatrixIndex] = val;
+    closeMatrixKeypad();
+    renderMatrixGrids();
+    updateMatrixScore();
+}
+
+function closeMatrixKeypad() {
+    const modal = document.getElementById('matrix-keypad-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function updateMatrixScore() {
+    let correct = 0;
+    matrixUserAnswers.forEach((ans, idx) => {
+        if (ans && validateMatrixCell(idx)) {
+            correct++;
+        }
+    });
+    const info = document.getElementById('matrix-score-info');
+    if (info) info.innerText = `Puan: ${correct} / 20`;
+}
+
+// 🤝 KARAKTER EŞLEŞTİRME OYUNU
+let matchingMode = 'hiragana';
+let selectedMatchChar = null;
+let selectedMatchRomaji = null;
+let matchedPairsCount = 0;
+
+function showMatchingGame() {
+    showScreen('screen-japanese-matching');
+    setMatchingMode('hiragana');
+}
+
+function setMatchingMode(mode) {
+    matchingMode = mode;
+    document.querySelectorAll('#screen-japanese-matching .btn-sub-tab').forEach(b => {
+        if (b.innerText.toLowerCase() === mode) b.classList.add('active');
+        else b.classList.remove('active');
+    });
+    startMatchingGameRound();
+}
+
+function startMatchingGameRound() {
+    selectedMatchChar = null;
+    selectedMatchRomaji = null;
+    matchedPairsCount = 0;
+    document.getElementById('matching-success-message').classList.add('hidden');
+    
+    const pool = JAPANESE_DATABASE[matchingMode];
+    if (!pool || pool.length < 5) return;
+    
+    let selected = [];
+    let indices = [];
+    while (selected.length < 5) {
+        const idx = Math.floor(Math.random() * pool.length);
+        if (!indices.includes(idx)) {
+            indices.push(idx);
+            selected.push(pool[idx]);
+        }
+    }
+    
+    const charsCol = document.getElementById('matching-chars-column');
+    charsCol.innerHTML = '<h3>Karakter</h3>';
+    const shuffledChars = [...selected].sort(() => Math.random() - 0.5);
+    shuffledChars.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'matching-card';
+        div.innerText = item.char;
+        div.dataset.romaji = item.romaji;
+        div.onclick = () => selectMatchingCharCard(div);
+        charsCol.appendChild(div);
+    });
+    
+    const romajiCol = document.getElementById('matching-romaji-column');
+    romajiCol.innerHTML = '<h3>Okunuş (Latin)</h3>';
+    const shuffledRomaji = [...selected].sort(() => Math.random() - 0.5);
+    shuffledRomaji.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'matching-card';
+        div.innerText = matchingMode === 'kanji' ? `${item.romaji} (${item.meaning})` : item.romaji;
+        div.dataset.romaji = item.romaji;
+        div.onclick = () => selectMatchingRomajiCard(div);
+        romajiCol.appendChild(div);
+    });
+}
+
+function selectMatchingCharCard(card) {
+    if (card.classList.contains('matched')) return;
+    document.querySelectorAll('#matching-chars-column .matching-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    selectedMatchChar = card;
+    checkMatchingPair();
+}
+
+function selectMatchingRomajiCard(card) {
+    if (card.classList.contains('matched')) return;
+    document.querySelectorAll('#matching-romaji-column .matching-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    selectedMatchRomaji = card;
+    checkMatchingPair();
+}
+
+function checkMatchingPair() {
+    if (!selectedMatchChar || !selectedMatchRomaji) return;
+    
+    const charRomaji = selectedMatchChar.dataset.romaji;
+    const romajiVal = selectedMatchRomaji.dataset.romaji;
+    
+    if (charRomaji === romajiVal) {
+        selectedMatchChar.classList.remove('selected');
+        selectedMatchRomaji.classList.remove('selected');
+        selectedMatchChar.classList.add('matched');
+        selectedMatchRomaji.classList.add('matched');
+        
+        selectedMatchChar = null;
+        selectedMatchRomaji = null;
+        matchedPairsCount++;
+        
+        if (matchedPairsCount === 5) {
+            document.getElementById('matching-success-message').classList.remove('hidden');
+        }
+    } else {
+        const tempChar = selectedMatchChar;
+        const tempRomaji = selectedMatchRomaji;
+        tempChar.classList.add('wrong');
+        tempRomaji.classList.add('wrong');
+        
+        selectedMatchChar = null;
+        selectedMatchRomaji = null;
+        
+        setTimeout(() => {
+            tempChar.classList.remove('selected', 'wrong');
+            tempRomaji.classList.remove('selected', 'wrong');
+        }, 600);
+    }
+}
+
+// 🔄 YAZIM & ÇİZİM SINAVI
+let jpQuizMode = 'reading'; 
+let jpQuizQuestions = [];
+let jpQuizCurrentIdx = 0;
+let jpQuizScore = 0;
+let quizCanvas, quizCtx, quizRefCanvas, quizRefCtx;
+let isQuizDrawing = false;
+let lastQuizX = 0, lastQuizY = 0;
+
+function showWritingQuiz() {
+    showScreen('screen-japanese-quiz');
+    document.getElementById('quiz-init-view').classList.remove('hidden');
+    document.getElementById('quiz-active-view').classList.add('hidden');
+    document.getElementById('quiz-result-view').classList.add('hidden');
+}
+
+function startJpQuiz(mode) {
+    jpQuizMode = mode;
+    jpQuizCurrentIdx = 0;
+    jpQuizScore = 0;
+    
+    const list = [...JAPANESE_DATABASE.hiragana];
+    list.sort(() => Math.random() - 0.5);
+    jpQuizQuestions = list.slice(0, 10);
+    
+    document.getElementById('quiz-init-view').classList.add('hidden');
+    document.getElementById('quiz-active-view').classList.remove('hidden');
+    
+    if (mode === 'drawing') {
+        document.getElementById('quiz-canvas-panel').classList.remove('hidden');
+        document.getElementById('quiz-input-container').classList.add('hidden');
+        document.getElementById('quiz-draw-actions').classList.remove('hidden');
+        initQuizCanvas();
+    } else {
+        document.getElementById('quiz-canvas-panel').classList.add('hidden');
+        document.getElementById('quiz-input-container').classList.remove('hidden');
+        document.getElementById('quiz-draw-actions').classList.add('hidden');
+    }
+    
+    loadJpQuizQuestion();
+}
+
+function initQuizCanvas() {
+    quizCanvas = document.getElementById('quiz-canvas');
+    if (!quizCanvas) return;
+    quizCtx = quizCanvas.getContext('2d');
+    quizRefCanvas = document.getElementById('quiz-ref-canvas');
+    quizRefCtx = quizRefCanvas.getContext('2d');
+    
+    setupCanvasListeners(quizCanvas, quizCtx);
+    clearQuizCanvas();
+}
+
+function clearQuizCanvas() {
+    if (quizCtx && quizCanvas) {
+        quizCtx.clearRect(0, 0, quizCanvas.width, quizCanvas.height);
+    }
+    if (quizRefCtx && quizRefCanvas) {
+        quizRefCtx.clearRect(0, 0, quizRefCanvas.width, quizRefCanvas.height);
+        quizRefCanvas.classList.add('hidden');
+    }
+}
+
+function loadJpQuizQuestion() {
+    const q = jpQuizQuestions[jpQuizCurrentIdx];
+    document.getElementById('quiz-progress-text').innerText = `Soru ${jpQuizCurrentIdx + 1} / 10`;
+    document.getElementById('quiz-feedback-box').classList.add('hidden');
+    
+    if (jpQuizMode === 'reading') {
+        document.getElementById('quiz-question-prompt').innerText = q.char;
+        document.getElementById('quiz-question-subtext').innerText = 'Bu harfin Latin alfabesindeki karşılığını yazın:';
+        document.getElementById('quiz-text-answer').value = '';
+        document.getElementById('quiz-text-answer').disabled = false;
+        document.getElementById('quiz-text-answer').focus();
+        document.getElementById('quiz-input-container').classList.remove('hidden');
+    } else {
+        document.getElementById('quiz-question-prompt').innerText = q.romaji.toUpperCase();
+        document.getElementById('quiz-question-subtext').innerText = 'Bu okunuşa sahip Hiragana karakterini sağdaki tuvale çizin:';
+        document.getElementById('quiz-draw-actions').classList.remove('hidden');
+        clearQuizCanvas();
+    }
+}
+
+function submitJpQuizAnswer() {
+    const q = jpQuizQuestions[jpQuizCurrentIdx];
+    const userAns = document.getElementById('quiz-text-answer').value.trim().toLowerCase();
+    document.getElementById('quiz-text-answer').disabled = true;
+    
+    const isCorrect = userAns === q.romaji.toLowerCase();
+    if (isCorrect) {
+        jpQuizScore++;
+        showJpQuizFeedback(true, 'Doğru!', q.memoryText);
+    } else {
+        showJpQuizFeedback(false, `Yanlış! (Doğru Cevap: ${q.romaji})`, q.memoryText);
+    }
+}
+
+function finishDrawingQuiz() {
+    const q = jpQuizQuestions[jpQuizCurrentIdx];
+    document.getElementById('quiz-draw-actions').classList.add('hidden');
+    
+    quizRefCtx.clearRect(0, 0, quizRefCanvas.width, quizRefCanvas.height);
+    quizRefCtx.font = '220px "Outfit", "Inter", sans-serif';
+    quizRefCtx.textAlign = 'center';
+    quizRefCtx.textBaseline = 'middle';
+    quizRefCtx.fillStyle = 'rgba(231, 76, 60, 0.45)'; 
+    quizRefCtx.fillText(q.char, quizRefCanvas.width / 2, quizRefCanvas.height / 2);
+    
+    quizRefCanvas.classList.remove('hidden');
+    showJpQuizFeedback(null, 'Çiziminizi Karşılaştırın', q.memoryText);
+}
+
+function showJpQuizFeedback(correct, title, story) {
+    const fBox = document.getElementById('quiz-feedback-box');
+    const icon = document.getElementById('quiz-feedback-icon');
+    const fTitle = document.getElementById('quiz-feedback-title');
+    const fStory = document.getElementById('quiz-feedback-story');
+    const nextBtn = document.getElementById('btn-quiz-next');
+    
+    fStory.innerText = story || '';
+    fTitle.innerText = title;
+    
+    if (correct === true) {
+        icon.innerText = '✅';
+        fBox.style.borderLeft = '5px solid #2ecc71';
+        nextBtn.classList.remove('hidden');
+    } else if (correct === false) {
+        icon.innerText = '❌';
+        fBox.style.borderLeft = '5px solid #e74c3c';
+        nextBtn.classList.remove('hidden');
+    } else {
+        icon.innerText = '🎨';
+        fBox.style.borderLeft = '5px solid #3498db';
+        fStory.innerHTML = `
+            <p>${story}</p>
+            <p style="margin-top: 10px; font-weight: 600;">Çiziminiz kırmızı şablona benziyor mu?</p>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button class="btn-primary" onclick="gradeDrawingQuiz(true)" style="background: #2ecc71; flex:1;">Doğru Çizdim</button>
+                <button class="btn-primary" onclick="gradeDrawingQuiz(false)" style="background: #e74c3c; flex:1;">Yanlış Çizdim</button>
+            </div>
+        `;
+        nextBtn.classList.add('hidden');
+    }
+    
+    fBox.classList.remove('hidden');
+}
+
+function gradeDrawingQuiz(correct) {
+    if (correct) {
+        jpQuizScore++;
+    }
+    nextJpQuizQuestion();
+}
+
+function nextJpQuizQuestion() {
+    jpQuizCurrentIdx++;
+    if (jpQuizCurrentIdx < 10) {
+        loadJpQuizQuestion();
+    } else {
+        showJpQuizResults();
+    }
+}
+
+function showJpQuizResults() {
+    document.getElementById('quiz-active-view').classList.add('hidden');
+    document.getElementById('quiz-result-view').classList.remove('hidden');
+    document.getElementById('quiz-score-text').innerText = `Skor: 10 sorudan ${jpQuizScore} Doğru`;
+}
+
+function restartJpQuiz() {
+    startJpQuiz(jpQuizMode);
+}
+
+// ✍️ ALFABE TEST MERKEZİ (DİNAMİK ÇOKTAN SEÇMELİ TEST)
+let jpTestQuestions = [];
+let jpTestCurrentIdx = 0;
+let jpTestScore = 0;
+
+function showAlphabetTest() {
+    showScreen('screen-japanese-alphabet-test');
+    document.getElementById('jp-test-setup-view').classList.remove('hidden');
+    document.getElementById('jp-test-active-view').classList.add('hidden');
+    document.getElementById('jp-test-result-view').classList.add('hidden');
+}
+
+function startJpAlphabetTest() {
+    const alphabet = document.getElementById('jp-test-setup-alphabet').value;
+    const countSel = document.getElementById('jp-test-setup-count').value;
+    
+    let pool = [];
+    if (alphabet === 'mix') {
+        pool = [...JAPANESE_DATABASE.hiragana, ...JAPANESE_DATABASE.katakana, ...JAPANESE_DATABASE.kanji];
+    } else {
+        pool = [...JAPANESE_DATABASE[alphabet]];
+    }
+    
+    pool.sort(() => Math.random() - 0.5);
+    
+    let count = countSel === 'all' ? pool.length : parseInt(countSel);
+    jpTestQuestions = pool.slice(0, count);
+    jpTestCurrentIdx = 0;
+    jpTestScore = 0;
+    
+    document.getElementById('jp-test-setup-view').classList.add('hidden');
+    document.getElementById('jp-test-active-view').classList.remove('hidden');
+    
+    loadJpAlphabetQuestion();
+}
+
+function confirmEndJpAlphabetTest() {
+    Swal.fire({
+        title: 'Testten Çıkmak İstiyor musunuz?',
+        text: 'İlerlemeniz kaydedilmeyecektir.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Evet, Çık',
+        cancelButtonText: 'İptal',
+        confirmButtonColor: '#ff4d6d'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            showAlphabetTest();
+        }
+    });
+}
+
+function loadJpAlphabetQuestion() {
+    const q = jpTestQuestions[jpTestCurrentIdx];
+    document.getElementById('jp-test-progress').innerText = `${jpTestCurrentIdx + 1} / ${jpTestQuestions.length}`;
+    document.getElementById('jp-test-feedback').classList.add('hidden');
+    document.getElementById('btn-next-jp-question').classList.add('hidden').style.display = 'none';
+    
+    const container = document.getElementById('jp-test-question-container');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    const isTypeA = Math.random() > 0.5;
+    
+    const title = document.createElement('h2');
+    if (isTypeA) {
+        title.innerHTML = `<span style="font-size: 4rem; display:block; margin-bottom:10px;">${q.char}</span> karakterinin Latin alfabesindeki karşılığı nedir?`;
+    } else {
+        const term = q.meaning ? `${q.romaji} (${q.meaning})` : q.romaji;
+        title.innerHTML = `Okunuşu/karşılığı <strong style="color:var(--primary-color); font-size: 1.5rem;">"${term}"</strong> olan karakter hangisidir?`;
+    }
+    container.appendChild(title);
+    
+    const fullPool = [...JAPANESE_DATABASE.hiragana, ...JAPANESE_DATABASE.katakana, ...JAPANESE_DATABASE.kanji];
+    let choices = [q];
+    while (choices.length < 4) {
+        const rand = fullPool[Math.floor(Math.random() * fullPool.length)];
+        if (!choices.some(c => c.char === rand.char)) {
+            choices.push(rand);
+        }
+    }
+    
+    choices.sort(() => Math.random() - 0.5);
+    
+    const grid = document.createElement('div');
+    grid.className = 'choices-grid';
+    
+    choices.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'choice-btn';
+        if (isTypeA) {
+            btn.innerText = opt.meaning ? `${opt.romaji} (${opt.meaning})` : opt.romaji;
+        } else {
+            btn.innerText = opt.char;
+        }
+        
+        btn.onclick = () => selectJpAlphabetChoice(btn, opt === q);
+        grid.appendChild(btn);
+    });
+    
+    container.appendChild(grid);
+}
+
+function selectJpAlphabetChoice(button, isCorrect) {
+    document.querySelectorAll('.choices-grid .choice-btn').forEach(btn => {
+        btn.disabled = true;
+        if (btn.innerText === button.innerText) {
+            if (isCorrect) {
+                btn.classList.add('correct');
+            } else {
+                btn.classList.add('wrong');
+            }
+        }
+    });
+    
+    if (!isCorrect) {
+        const correctItem = jpTestQuestions[jpTestCurrentIdx];
+        const promptIsChar = document.querySelector('.question-container h2 span') !== null;
+        document.querySelectorAll('.choices-grid .choice-btn').forEach(btn => {
+            if (promptIsChar) {
+                const targetText = correctItem.meaning ? `${correctItem.romaji} (${correctItem.meaning})` : correctItem.romaji;
+                if (btn.innerText === targetText) {
+                    btn.classList.add('correct');
+                }
+            } else {
+                if (btn.innerText === correctItem.char) {
+                    btn.classList.add('correct');
+                }
+            }
+        });
+    }
+    
+    if (isCorrect) {
+        jpTestScore++;
+    }
+    
+    const q = jpTestQuestions[jpTestCurrentIdx];
+    const feedback = document.getElementById('jp-test-feedback');
+    if (feedback) {
+        document.getElementById('jp-test-feedback-text').innerText = `${q.char} (${q.romaji}): ${q.memoryText}`;
+        feedback.classList.remove('hidden');
+    }
+    
+    const nextBtn = document.getElementById('btn-next-jp-question');
+    if (nextBtn) {
+        nextBtn.classList.remove('hidden');
+        nextBtn.style.display = 'block';
+    }
+}
+
+function nextJpAlphabetQuestion() {
+    jpTestCurrentIdx++;
+    if (jpTestCurrentIdx < jpTestQuestions.length) {
+        loadJpAlphabetQuestion();
+    } else {
+        showJpAlphabetTestResults();
+    }
+}
+
+function showJpAlphabetTestResults() {
+    document.getElementById('jp-test-active-view').classList.add('hidden');
+    document.getElementById('jp-test-result-view').classList.remove('hidden');
+    document.getElementById('jp-test-score-text').innerText = `${jpTestQuestions.length} sorudan ${jpTestScore} doğru, ${jpTestQuestions.length - jpTestScore} yanlış yaptınız.`;
+}
+
+function restartJpAlphabetTest() {
+    startJpAlphabetTest();
+}
