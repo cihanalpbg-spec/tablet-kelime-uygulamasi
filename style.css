@@ -934,11 +934,11 @@ h1, h2, h3, h4 {
 
 /* Chalkboard Design & Stats UI */
 .grammar-detail-card.chalkboard-mode {
-    background-color: #1a4329 !important; /* Chalkboard green */
+    background-color: #0d2818 !important; /* Koyu Yeşil Tahta */
     background-image: 
-        radial-gradient(circle at 50% 50%, rgba(40, 96, 62, 0.4) 0%, rgba(20, 50, 32, 0.4) 100%),
-        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0px, rgba(255, 255, 255, 0.02) 1px, transparent 1px, transparent 10px) !important;
-    border: 12px solid #5a3825 !important; /* Wooden frame */
+        radial-gradient(circle at 50% 50%, rgba(40, 96, 62, 0.3) 0%, rgba(13, 40, 24, 0.5) 100%),
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.01) 0px, rgba(255, 255, 255, 0.01) 1px, transparent 1px, transparent 10px) !important;
+    border: 12px solid #5a3825 !important; /* Ahşap çerçeve */
     border-radius: 8px !important;
     color: #f1f5f2 !important;
     font-family: 'Patrick Hand', 'Architects Daughter', 'Comic Sans MS', cursive, sans-serif !important;
@@ -958,16 +958,37 @@ h1, h2, h3, h4 {
 }
 
 .grammar-detail-card.chalkboard-mode .grammar-html-content {
-    color: #f1f5f2; /* Default chalk white, no important so spans can override it */
     font-family: 'Patrick Hand', cursive, sans-serif !important;
     font-size: 1.25rem !important;
     line-height: 1.8 !important;
 }
 
 .grammar-detail-card.chalkboard-mode .grammar-html-content p,
-.grammar-detail-card.chalkboard-mode .grammar-html-content div {
-    text-shadow: 0 0 1px rgba(255, 255, 255, 0.3), 0 0 2px rgba(255, 255, 255, 0.2);
+.grammar-detail-card.chalkboard-mode .grammar-html-content div,
+.grammar-detail-card.chalkboard-mode .grammar-html-content li {
+    background-color: white; /* default white background */
+    color: #2c3e50; /* default dark text */
+    padding: 6px 12px;
+    border-radius: 6px;
+    display: inline-block;
+    max-width: 100%;
+    margin-bottom: 12px;
+    text-shadow: none;
+    box-sizing: border-box;
+}
+
+.grammar-detail-card.chalkboard-mode .grammar-html-content h1,
+.grammar-detail-card.chalkboard-mode .grammar-html-content h2,
+.grammar-detail-card.chalkboard-mode .grammar-html-content h3,
+.grammar-detail-card.chalkboard-mode .grammar-html-content h4 {
+    background-color: #dc3545; /* default red background for titles */
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    display: inline-block;
+    margin-top: 15px;
     margin-bottom: 15px;
+    text-shadow: none;
 }
 
 .grammar-detail-card.chalkboard-mode table {

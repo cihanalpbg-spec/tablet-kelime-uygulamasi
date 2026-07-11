@@ -119,6 +119,22 @@ async function selectLanguage(lang) {
         }
     });
     
+    // Retrieve sync settings
+    const savedSyncKey = localStorage.getItem('sync_key');
+    const savedAutoSync = localStorage.getItem('sync_auto');
+    const syncKeyInput = document.getElementById('sync-key-input');
+    const autoSyncCheckbox = document.getElementById('sync-auto-checkbox');
+    
+    if (syncKeyInput && savedSyncKey) {
+        syncKeyInput.value = savedSyncKey;
+    }
+    if (autoSyncCheckbox && savedAutoSync === 'true') {
+        autoSyncCheckbox.checked = true;
+        setTimeout(() => {
+            syncWithCloud(true);
+        }, 800);
+    }
+    
     showScreen('screen-dashboard');
 }
 
@@ -128,6 +144,11 @@ async function saveData() {
             await window.pywebview.api.save_data(currentLang, appData);
         } else {
             await db.setItem(currentLang, appData);
+        }
+        
+        // Auto Cloud Sync if enabled
+        if (localStorage.getItem('sync_auto') === 'true' && localStorage.getItem('sync_key')) {
+            syncWithCloud(true);
         }
     } catch (e) {
         console.error("Error saving data:", e);
@@ -2031,9 +2052,9 @@ function enableGrammarEditMode() {
     const note = appData.grammar.find(n => n.id === currentGrammarNoteId);
     if (!note) return;
     
-    // Set values in input & textarea
+    // Set values in input & contenteditable editor
     document.getElementById('edit-note-title-input').value = note.title;
-    document.getElementById('edit-note-content-input').value = note.html;
+    document.getElementById('edit-note-content-input').innerHTML = note.html;
     
     // Swap views
     document.getElementById('grammar-read-mode').classList.add('hidden');
@@ -2061,7 +2082,7 @@ async function saveGrammarEdit() {
     if (!note) return;
     
     const newTitle = document.getElementById('edit-note-title-input').value.trim();
-    const newHtml = document.getElementById('edit-note-content-input').value.trim();
+    const newHtml = document.getElementById('edit-note-content-input').innerHTML.trim();
     
     if (!newTitle) {
         alertMsg("Hata", "Lütfen bir başlık girin.", "error");
@@ -4681,5 +4702,229 @@ function confirmEndOtherTest() {
             showOtherWorkspace();
         }
     });
+}
+
+// --- RICH TEXT EDITOR & BULUT SENKRONİZASYONU ---
+function formatDoc(cmd, value = null) {
+    document.execCommand(cmd, false, value);
+}
+
+async function forceAppUpdate() {
+    showLoading("Önbellek temizleniyor ve güncelleniyor...");
+    try {
+        if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (let registration of registrations) {
+                await registration.unregister();
+            }
+        }
+        if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            for (let cacheName of cacheNames) {
+                await caches.delete(cacheName);
+            }
+        }
+        hideLoading();
+        Swal.fire({
+            title: "Güncellendi!",
+            text: "Uygulama başarıyla güncellendi ve önbellek temizlendi. Sayfa yeniden yükleniyor...",
+            icon: "success"
+        }).then(() => {
+            window.location.reload(true);
+        });
+    } catch (e) {
+        console.error(e);
+        hideLoading();
+        window.location.reload(true);
+    }
+}
+
+async function generateSyncKey() {
+    showLoading("Yeni senkronizasyon anahtarı alınıyor...");
+    try {
+        const response = await fetch("https://kvdb.io/", { method: "POST", body: "email=sync@vocabularyapp.com" });
+        if (response.status === 200 || response.status === 201) {
+            const bucketId = (await response.text()).trim();
+            document.getElementById('sync-key-input').value = bucketId;
+            localStorage.setItem('sync_key', bucketId);
+            hideLoading();
+            Swal.fire({
+                title: "Anahtar Alındı!",
+                text: `Yeni anahtarınız: ${bucketId}. Diğer cihazlarınızda eşitleme yapmak için bu anahtarı kullanın.`,
+                icon: "success"
+            });
+        } else {
+            throw new Error("Bucket creation failed with status " + response.status);
+        }
+    } catch(e) {
+        console.error(e);
+        const randKey = "sync_" + Math.random().toString(36).substr(2, 9) + Math.random().toString(36).substr(2, 9);
+        document.getElementById('sync-key-input').value = randKey;
+        localStorage.setItem('sync_key', randKey);
+        hideLoading();
+        Swal.fire({
+            title: "Anahtar Oluşturuldu (Yerel Üretim)!",
+            text: `Üretilen anahtar: ${randKey}. Diğer cihazlarınızda eşitleme yapmak için bu anahtarı kullanın.`,
+            icon: "success"
+        });
+    }
+}
+
+async function syncWithCloud(silent = false) {
+    const syncKeyInput = document.getElementById('sync-key-input');
+    const syncKey = syncKeyInput ? syncKeyInput.value.trim() : localStorage.getItem('sync_key');
+    if (!syncKey) {
+        if (!silent) alertMsg("Hata", "Lütfen önce bir senkronizasyon anahtarı girin.", "warning");
+        return;
+    }
+    
+    localStorage.setItem('sync_key', syncKey);
+    if (syncKeyInput) syncKeyInput.value = syncKey;
+    
+    if (!silent) showLoading("Bulutla eşitleniyor...");
+    
+    try {
+        const url = `https://kvdb.io/${syncKey}/appData_${currentLang}`;
+        const response = await fetch(url);
+        
+        let cloudData = null;
+        if (response.status === 200) {
+            const text = await response.text();
+            try {
+                cloudData = JSON.parse(text);
+            } catch(e) {
+                console.error("Cloud data is not valid JSON", e);
+            }
+        }
+        
+        if (cloudData) {
+            mergeAppData(cloudData);
+        }
+        
+        const uploadResponse = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(appData)
+        });
+        
+        if (uploadResponse.status === 200 || uploadResponse.status === 201) {
+            await saveData();
+            if (!silent) {
+                hideLoading();
+                Swal.fire({
+                    title: "Başarılı!",
+                    text: "Veriler bulutla başarıyla eşitlendi ve güncellendi.",
+                    icon: "success"
+                }).then(() => {
+                    if (document.getElementById('screen-word-dates').classList.contains('active')) showWordLists();
+                    if (document.getElementById('screen-other-word-dates').classList.contains('active')) showOtherWordLists();
+                    if (document.getElementById('screen-grammar-list').classList.contains('active')) showGrammarSection();
+                });
+            }
+        } else {
+            throw new Error("Cloud upload failed with status " + uploadResponse.status);
+        }
+    } catch (e) {
+        console.error("Sync error:", e);
+        if (!silent) {
+            hideLoading();
+            alertMsg("Hata", "Bulut senkronizasyonu sırasında bir hata oluştu: " + e.message, "error");
+        }
+    }
+}
+
+function toggleAutoSync() {
+    const checkbox = document.getElementById('sync-auto-checkbox');
+    localStorage.setItem('sync_auto', checkbox.checked ? "true" : "false");
+    if (checkbox.checked) {
+        syncWithCloud(true);
+    }
+}
+
+function mergeAppData(cloudData) {
+    if (!cloudData) return;
+    
+    if (cloudData.words) {
+        for (let date in cloudData.words) {
+            if (!appData.words[date]) {
+                appData.words[date] = cloudData.words[date];
+            } else {
+                const localList = appData.words[date];
+                const cloudList = cloudData.words[date];
+                cloudList.forEach(cw => {
+                    if (!localList.some(lw => lw.word.toLowerCase() === cw.word.toLowerCase())) {
+                        localList.push(cw);
+                    }
+                });
+            }
+        }
+    }
+    
+    if (cloudData.otherWords) {
+        if (!appData.otherWords) appData.otherWords = {};
+        for (let date in cloudData.otherWords) {
+            if (!appData.otherWords[date]) {
+                appData.otherWords[date] = cloudData.otherWords[date];
+            } else {
+                const localList = appData.otherWords[date];
+                const cloudList = cloudData.otherWords[date];
+                cloudList.forEach(cw => {
+                    if (!localList.some(lw => lw.word.toLowerCase() === cw.word.toLowerCase())) {
+                        localList.push(cw);
+                    }
+                });
+            }
+        }
+    }
+    
+    if (cloudData.grammar) {
+        if (!appData.grammar) appData.grammar = [];
+        cloudData.grammar.forEach(cg => {
+            if (!appData.grammar.some(lg => lg.id === cg.id)) {
+                appData.grammar.push(cg);
+            }
+        });
+    }
+    
+    if (cloudData.tests) {
+        if (!appData.tests) appData.tests = [];
+        cloudData.tests.forEach(ct => {
+            if (!appData.tests.some(lt => lt.title === ct.title)) {
+                appData.tests.push(ct);
+            }
+        });
+    }
+    
+    if (cloudData.flashcards) {
+        if (!appData.flashcards) appData.flashcards = {};
+        for (let name in cloudData.flashcards) {
+            if (!appData.flashcards[name]) {
+                appData.flashcards[name] = cloudData.flashcards[name];
+            }
+        }
+    }
+    
+    if (cloudData.stats) {
+        if (!appData.stats) appData.stats = { correct: 0, wrong: 0 };
+        appData.stats.correct = Math.max(appData.stats.correct, cloudData.stats.correct);
+        appData.stats.wrong = Math.max(appData.stats.wrong, cloudData.stats.wrong);
+    }
+    
+    if (cloudData.wrongWords) {
+        if (!appData.wrongWords) appData.wrongWords = {};
+        for (let date in cloudData.wrongWords) {
+            if (!appData.wrongWords[date]) {
+                appData.wrongWords[date] = cloudData.wrongWords[date];
+            } else {
+                const localList = appData.wrongWords[date];
+                const cloudList = cloudData.wrongWords[date];
+                cloudList.forEach(cw => {
+                    if (!localList.some(lw => lw.word === cw.word)) {
+                        localList.push(cw);
+                    }
+                });
+            }
+        }
+    }
 }
 
