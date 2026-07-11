@@ -2029,61 +2029,101 @@ function openGrammarNote(noteId) {
     // Set Header
     document.getElementById('grammar-note-title').innerText = note.title;
     
-    // Set Read Mode content
-    document.getElementById('read-note-title').innerText = note.title;
-    document.getElementById('grammar-detail-html').innerHTML = note.html;
+    // Set content and ensure contenteditable is false initially
+    const titleEl = document.getElementById('read-note-title');
+    const contentEl = document.getElementById('grammar-detail-html');
+    
+    if (titleEl) {
+        titleEl.innerText = note.title;
+        titleEl.setAttribute('contenteditable', 'false');
+        
+        // Remove old listeners by replacing node
+        const newTitleEl = titleEl.cloneNode(true);
+        titleEl.parentNode.replaceChild(newTitleEl, titleEl);
+        newTitleEl.addEventListener('dblclick', () => {
+            makeEditable(newTitleEl);
+        });
+    }
+    
+    if (contentEl) {
+        contentEl.innerHTML = note.html;
+        contentEl.setAttribute('contenteditable', 'false');
+        
+        // Remove old listeners by replacing node
+        const newContentEl = contentEl.cloneNode(true);
+        contentEl.parentNode.replaceChild(newContentEl, contentEl);
+        newContentEl.addEventListener('dblclick', () => {
+            makeEditable(newContentEl);
+        });
+    }
     
     // Set Chalkboard mode
     const detailCard = document.querySelector('.grammar-detail-card');
     if (detailCard) detailCard.classList.add('chalkboard-mode');
     
-    // Reset to Read Mode
-    document.getElementById('grammar-read-mode').classList.remove('hidden');
-    document.getElementById('grammar-edit-mode').classList.add('hidden');
-    
-    document.getElementById('btn-grammar-edit').classList.remove('hidden');
-    document.getElementById('btn-grammar-delete').classList.remove('hidden');
-    document.getElementById('btn-grammar-save').classList.add('hidden');
-    document.getElementById('btn-grammar-cancel').classList.add('hidden');
+    // Remove any floating indicator remnants
+    const indicator = document.getElementById('grammar-editor-indicator');
+    if (indicator && indicator.parentNode) indicator.parentNode.removeChild(indicator);
     
     showScreen('screen-grammar-detail');
 }
 
-function enableGrammarEditMode() {
-    const note = appData.grammar.find(n => n.id === currentGrammarNoteId);
-    if (!note) return;
-    
-    // Set values in input & contenteditable editor
-    document.getElementById('edit-note-title-input').value = note.title;
-    document.getElementById('edit-note-content-input').innerHTML = note.html;
-    
-    // Swap views
-    document.getElementById('grammar-read-mode').classList.add('hidden');
-    document.getElementById('grammar-edit-mode').classList.remove('hidden');
-    
-    document.getElementById('btn-grammar-edit').classList.add('hidden');
-    document.getElementById('btn-grammar-delete').classList.add('hidden');
-    document.getElementById('btn-grammar-save').classList.remove('hidden');
-    document.getElementById('btn-grammar-cancel').classList.remove('hidden');
+function makeEditable(el) {
+    if (el.getAttribute('contenteditable') === 'true') return;
+    el.setAttribute('contenteditable', 'true');
+    el.focus();
+    showEditorIndicator("✏️ Düzenleme Modu (Kaydetmek için Ctrl+S)");
 }
 
-function cancelGrammarEdit() {
-    // Just swap views back
-    document.getElementById('grammar-read-mode').classList.remove('hidden');
-    document.getElementById('grammar-edit-mode').classList.add('hidden');
+function showEditorIndicator(text, isSuccess = false) {
+    let indicator = document.getElementById('grammar-editor-indicator');
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'grammar-editor-indicator';
+        indicator.style.cssText = `
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #ffe66d;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-family: 'Patrick Hand', cursive, sans-serif;
+            z-index: 100;
+            pointer-events: none;
+            transition: all 0.3s ease;
+        `;
+        const card = document.querySelector('.grammar-detail-card');
+        if (card) card.appendChild(indicator);
+    }
     
-    document.getElementById('btn-grammar-edit').classList.remove('hidden');
-    document.getElementById('btn-grammar-delete').classList.remove('hidden');
-    document.getElementById('btn-grammar-save').classList.add('hidden');
-    document.getElementById('btn-grammar-cancel').classList.add('hidden');
+    indicator.innerText = text;
+    if (isSuccess) {
+        indicator.style.background = '#2ecc71';
+        indicator.style.color = 'white';
+        setTimeout(() => {
+            indicator.style.opacity = '0';
+            setTimeout(() => {
+                if (indicator && indicator.parentNode) indicator.parentNode.removeChild(indicator);
+            }, 300);
+        }, 2000);
+    } else {
+        indicator.style.background = 'rgba(0, 0, 0, 0.7)';
+        indicator.style.color = '#ffe66d';
+        indicator.style.opacity = '1';
+    }
 }
 
 async function saveGrammarEdit() {
     const note = appData.grammar.find(n => n.id === currentGrammarNoteId);
     if (!note) return;
     
-    const newTitle = document.getElementById('edit-note-title-input').value.trim();
-    const newHtml = document.getElementById('edit-note-content-input').innerHTML.trim();
+    const titleEl = document.getElementById('read-note-title');
+    const contentEl = document.getElementById('grammar-detail-html');
+    
+    const newTitle = titleEl.innerText.trim();
+    const newHtml = contentEl.innerHTML.trim();
     
     if (!newTitle) {
         alertMsg("Hata", "Lütfen bir başlık girin.", "error");
@@ -2097,13 +2137,14 @@ async function saveGrammarEdit() {
     await saveData();
     hideLoading();
     
+    // Disable editing
+    titleEl.setAttribute('contenteditable', 'false');
+    contentEl.setAttribute('contenteditable', 'false');
+    
     // Update header & views
     document.getElementById('grammar-note-title').innerText = note.title;
-    document.getElementById('read-note-title').innerText = note.title;
-    document.getElementById('grammar-detail-html').innerHTML = note.html;
     
-    cancelGrammarEdit();
-    alertMsg("Başarılı", "Değişiklikler kaydedildi!");
+    showEditorIndicator("✅ Değişiklikler Kaydedildi!", true);
 }
 
 function deleteGrammarNote() {

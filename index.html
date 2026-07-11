@@ -437,53 +437,15 @@
                     <!-- Read Mode Content -->
                     <div id="grammar-read-mode">
                         <h2 id="read-note-title" style="margin-bottom: 20px; color: var(--primary-color);">Başlık</h2>
-                        <div id="grammar-detail-html" class="grammar-html-content" style="line-height: 1.6; font-size: 1.1rem; color: #2c3e50;">
+                        <div id="grammar-detail-html" class="grammar-html-content" style="line-height: 1.6; font-size: 1.1rem; color: #2c3e50;" contenteditable="true">
                             <!-- HTML content injected here -->
-                        </div>
-                    </div>
-
-                    <!-- Edit Mode Content (Hidden by default) -->
-                    <div id="grammar-edit-mode" class="hidden">
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; font-weight: 600; margin-bottom: 5px;">Konu Başlığı</label>
-                            <input type="text" id="edit-note-title-input" class="game-input" style="width: 100%; text-align: left; max-width: none;" placeholder="Konu başlığı...">
-                        </div>
-                        <div style="margin-bottom: 20px;">
-                            <label style="display: block; font-weight: 600; margin-bottom: 5px;">İçerik (Zengin Metin Editörü)</label>
-                            
-                            <!-- Editor Toolbar -->
-                            <div class="editor-toolbar" style="background: #f1f3f5; border: 2px solid #ccc; border-bottom: none; border-top-left-radius: 8px; border-top-right-radius: 8px; padding: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                                <!-- Alignment Group -->
-                                <button class="editor-btn" onclick="formatDoc('justifyLeft')" type="button" title="Sola Hizala" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #aaa; background: white; cursor: pointer; font-size: 0.85rem;">⬅️ Sola</button>
-                                <button class="editor-btn" onclick="formatDoc('justifyCenter')" type="button" title="Ortala" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #aaa; background: white; cursor: pointer; font-size: 0.85rem;">↔️ Ortala</button>
-                                <button class="editor-btn" onclick="formatDoc('justifyFull')" type="button" title="İki Yana Yasla" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #aaa; background: white; cursor: pointer; font-size: 0.85rem;">↔️ İki Yana</button>
-                                
-                                <div style="width: 2px; height: 20px; background: #ccc; margin: 0 4px;"></div>
-                                
-                                <!-- Background Color Selector -->
-                                <span style="font-size: 0.85rem; font-weight: 600; color: #4a5568;">Fon Rengi:</span>
-                                <button class="editor-btn color-btn" onclick="formatDoc('backColor', 'white')" type="button" title="Beyaz Fon" style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid #aaa; background: white; cursor: pointer;"></button>
-                                <button class="editor-btn color-btn" onclick="formatDoc('backColor', '#ffccd5')" type="button" title="Kırmızı Fon" style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid #aaa; background: #ffccd5; cursor: pointer;"></button>
-                                <button class="editor-btn color-btn" onclick="formatDoc('backColor', '#fff3cd')" type="button" title="Sarı Fon" style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid #aaa; background: #fff3cd; cursor: pointer;"></button>
-                                <button class="editor-btn color-btn" onclick="formatDoc('backColor', '#d4edda')" type="button" title="Yeşil Fon" style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid #aaa; background: #d4edda; cursor: pointer;"></button>
-                                <button class="editor-btn color-btn" onclick="formatDoc('backColor', '#d1ecf1')" type="button" title="Mavi Fon" style="width: 24px; height: 24px; border-radius: 4px; border: 1px solid #aaa; background: #d1ecf1; cursor: pointer;"></button>
-                                <button class="editor-btn color-btn" onclick="formatDoc('backColor', 'transparent')" type="button" title="Fon Temizle" style="padding: 4px 8px; font-size: 0.75rem; border-radius: 4px; border: 1px solid #aaa; background: white; cursor: pointer;">Temizle</button>
-                            </div>
-                            
-                            <!-- Content Editable Editor -->
-                            <div id="edit-note-content-input" contenteditable="true" style="width: 100%; min-height: 350px; padding: 15px; border-radius: 0 0 8px 8px; border: 2px solid #ccc; font-family: inherit; font-size: 1rem; line-height: 1.5; background: white; color: black; overflow-y: auto; box-sizing: border-box; outline: none; text-align: left;"></div>
                         </div>
                     </div>
 
                     <!-- Action Button Group -->
                     <div class="grammar-detail-actions" style="margin-top: 25px; display: flex; justify-content: flex-end; gap: 10px;">
-                        <!-- Read Mode Buttons -->
-                        <button id="btn-grammar-edit" class="btn-primary" onclick="enableGrammarEditMode()">Düzenle</button>
-                        <button id="btn-grammar-delete" class="btn-primary" style="background: var(--accent);" onclick="deleteGrammarNote()">Sil</button>
-                        
-                        <!-- Edit Mode Buttons -->
-                        <button id="btn-grammar-save" class="btn-primary hidden" style="background: var(--success);" onclick="saveGrammarEdit()">Kaydet</button>
-                        <button id="btn-grammar-cancel" class="btn-primary hidden" style="background: var(--text-light);" onclick="cancelGrammarEdit()">İptal</button>
+                        <span style="font-size: 0.85rem; color: #a0aec0; margin-right: auto; align-self: center;">💡 Düzenlemek için çift tıklayın veya metni seçin. Kaydetmek için Ctrl+S basın.</span>
+                        <button id="btn-grammar-delete" class="btn-primary" style="background: var(--accent);" onclick="deleteGrammarNote()">Notu Sil</button>
                     </div>
 
                 </div>
