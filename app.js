@@ -5069,13 +5069,16 @@ function handleTextSelection() {
     }, 10);
 }
 
-// Keyboard listener for Ctrl+S inside grammar edit mode
+// Keyboard listener for Ctrl+S inside grammar direct edit mode
 document.addEventListener('keydown', function(event) {
-    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
-        const editModeContainer = document.getElementById('grammar-edit-mode');
-        const editModeActive = editModeContainer && !editModeContainer.classList.contains('hidden');
-        if (editModeActive) {
-            event.preventDefault();
+    if ((event.ctrlKey || event.metaKey) && (event.key === 's' || event.key === 'S' || event.keyCode === 83)) {
+        const titleEl = document.getElementById('read-note-title');
+        const contentEl = document.getElementById('grammar-detail-html');
+        const isEditable = (titleEl && titleEl.getAttribute('contenteditable') === 'true') || 
+                           (contentEl && contentEl.getAttribute('contenteditable') === 'true');
+        
+        if (isEditable) {
+            event.preventDefault(); // Stop default browser Save Page dialog!
             saveGrammarEdit();
         }
     }
