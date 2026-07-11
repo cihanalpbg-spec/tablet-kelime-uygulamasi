@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('file-grammar-upload').addEventListener('change', handleGrammarUpload);
     document.getElementById('file-backup-upload').addEventListener('change', handleBackupUpload);
     document.getElementById('file-flashcard-upload').addEventListener('change', handleFlashcardUpload);
+    document.getElementById('file-other-word-upload').addEventListener('change', handleOtherWordUpload);
 });
 
 // --- NAVIGATION ---
@@ -92,6 +93,7 @@ async function selectLanguage(lang) {
         
         // Normalize fields
         if (!appData.words) appData.words = {};
+        if (!appData.otherWords) appData.otherWords = {};
         if (!appData.tests) appData.tests = [];
         if (!appData.grammar) appData.grammar = [];
         if (!appData.flashcards) appData.flashcards = {};
@@ -4063,3 +4065,621 @@ function showJpAlphabetTestResults() {
 function restartJpAlphabetTest() {
     startJpAlphabetTest();
 }
+
+// --- OTHER WORKSPACE NAVIGATION & DATA ---
+function showOtherWorkspace() {
+    showScreen('screen-other-workspace');
+}
+
+// OTHER WORD PARSER (FORMAT 2)
+async function handleOtherWordUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    showLoading("Word belgesi okunuyor...");
+    
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({arrayBuffer: arrayBuffer});
+        const text = result.value;
+        parseOtherWordDocument(text);
+        
+        // Reset file input
+        e.target.value = '';
+    } catch (error) {
+        console.error(error);
+        alertMsg("Hata", "Dosya okunurken bir hata oluştu.", "error");
+        hideLoading();
+    }
+}
+
+function splitEnglishTurkishSentence(sentenceLine) {
+    // Look for first occurrence of . or ? or ! followed by space
+    const match = sentenceLine.match(/^(.+?[\.\?\!])\s+(.+)$/);
+    if (match) {
+        return {
+            sentenceEn: match[1].trim(),
+            sentenceTr: match[2].trim()
+        };
+    }
+    return {
+        sentenceEn: sentenceLine,
+        sentenceTr: ""
+    };
+}
+
+function parseOtherWordDocument(text) {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    let parsedWords = [];
+    
+    // Regex for word line
+    // e.g. "image (imidj) - görüntü, imaj (isim)"
+    // or "imply (implay) - ima etmek (fiil)"
+    const wordLineRegex = /^([a-zA-ZğüşıöçĞÜŞİÖÇ\s\-'\’]+)\s*\(([^)]+)\)\s*(?:-|–)\s*(.+)$/;
+    
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+        const match = line.match(wordLineRegex);
+        
+        if (match) {
+            let rawWord = match[1].trim();
+            let pronunciation = match[2].trim();
+            let meaningPart = match[3].trim();
+            
+            // Extract part of speech from the end of meaning if it exists in parentheses
+            let type = "";
+            const typeMatch = meaningPart.match(/\(([^)]+)\)$/);
+            if (typeMatch) {
+                type = typeMatch[1].trim();
+                meaningPart = meaningPart.replace(/\(([^)]+)\)$/, "").trim();
+            }
+            
+            // Next line (Line B): English-Turkish Sentence
+            let sentenceEn = "";
+            let sentenceTr = "";
+            if (i + 1 < lines.length) {
+                let sentenceLine = lines[i + 1];
+                if (!sentenceLine.match(wordLineRegex)) {
+                    const splitSent = splitEnglishTurkishSentence(sentenceLine);
+                    sentenceEn = splitSent.sentenceEn;
+                    sentenceTr = splitSent.sentenceTr;
+                    i++; // consume line B
+                }
+            }
+            
+            // Next line (Line C): Turkish sentence with English word
+            let sentenceTrWithEnWord = "";
+            if (i + 1 < lines.length) {
+                let thirdLine = lines[i + 1];
+                if (!thirdLine.match(wordLineRegex)) {
+                    sentenceTrWithEnWord = thirdLine;
+                    i++; // consume line C
+                }
+            }
+            
+            parsedWords.push({
+                word: rawWord,
+                pronunciation: pronunciation,
+                meaning: meaningPart,
+                type: type,
+                sentenceEn: sentenceEn,
+                sentenceTr: sentenceTr,
+                sentenceTrWithEnWord: sentenceTrWithEnWord
+            });
+        }
+    }
+    
+    if (parsedWords.length > 0) {
+        const today = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' });
+        const listName = `${today} Listesi`;
+        
+        if (!appData.otherWords) appData.otherWords = {};
+        if (!appData.otherWords[listName]) appData.otherWords[listName] = [];
+        appData.otherWords[listName] = appData.otherWords[listName].concat(parsedWords);
+        
+        saveData().then(() => {
+            hideLoading();
+            alertMsg("Başarılı", `${parsedWords.length} kelime başarıyla eklendi!`);
+            if (document.getElementById('screen-other-word-dates').classList.contains('active')) {
+                renderOtherWordLists();
+            }
+        });
+    } else {
+        hideLoading();
+        alertMsg("Hata", "Belgede uygun formatta kelime bulunamadı. Lütfen Word şablonunu kontrol edin.", "warning");
+    }
+}
+
+// OTHER WORDS VIEWING
+function showOtherWordLists() {
+    showScreen('screen-other-word-dates');
+    renderOtherWordLists();
+}
+
+function renderOtherWordLists() {
+    const container = document.getElementById('other-date-list-container');
+    container.innerHTML = '';
+    
+    if (!appData.otherWords || Object.keys(appData.otherWords).length === 0) {
+        container.innerHTML = '<div class="no-data-msg">Henüz yüklenmiş kelime listesi bulunmuyor.</div>';
+        return;
+    }
+    
+    const dates = Object.keys(appData.otherWords).sort((a,b) => {
+        return b.localeCompare(a);
+    });
+    
+    dates.forEach(date => {
+        const count = appData.otherWords[date].length;
+        const card = document.createElement('div');
+        card.className = 'date-card';
+        card.innerHTML = `
+            <div class="date-card-info" onclick="openOtherWordList('${date}')">
+                <span class="date-card-icon">📅</span>
+                <div>
+                    <h3>${date}</h3>
+                    <p>${count} Kelime</p>
+                </div>
+            </div>
+            <button class="btn-delete-list" onclick="deleteOtherWordList('${date}', event)">Sil</button>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function deleteOtherWordList(date, event) {
+    if (event) event.stopPropagation();
+    
+    Swal.fire({
+        title: 'Emin misiniz?',
+        text: `"${date}" listesi ve içindeki tüm kelimeler silinecektir!`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: themes[currentLang].primary,
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Evet, Sil',
+        cancelButtonText: 'İptal'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            delete appData.otherWords[date];
+            saveData().then(() => {
+                renderOtherWordLists();
+                alertMsg("Silindi", "Kelime listesi silindi.");
+            });
+        }
+    });
+}
+
+let currentOtherWordListDate = "";
+function openOtherWordList(date) {
+    currentOtherWordListDate = date;
+    showScreen('screen-other-words');
+    document.getElementById('other-words-date-title').innerText = date;
+    
+    const list = appData.otherWords[date] || [];
+    const container = document.getElementById('other-words-list');
+    container.innerHTML = '';
+    
+    list.forEach(w => {
+        const li = document.createElement('li');
+        li.className = 'word-item-row';
+        li.innerHTML = `
+            <div class="word-main-info" onclick="showOtherWordDetail(${JSON.stringify(w).replace(/"/g, '&quot;')})">
+                <span class="word-name">${w.word}</span>
+                <span class="word-pron">(${w.pronunciation})</span>
+                <span class="word-meaning-preview">${w.meaning}</span>
+            </div>
+            <button class="btn-delete-word" style="background: none; border: none; color: #e74c3c; cursor: pointer; font-size: 1.1rem; padding: 5px 10px;" onclick="deleteOtherWord('${date}', ${JSON.stringify(w).replace(/"/g, '&quot;')})">🗑️</button>
+        `;
+        container.appendChild(li);
+    });
+}
+
+function deleteOtherWord(date, wordObj) {
+    Swal.fire({
+        title: 'Kelimeyi Sil?',
+        text: `"${wordObj.word}" kelimesini silmek istediğinize emin misiniz?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: themes[currentLang].primary,
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Evet, Sil',
+        cancelButtonText: 'İptal'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            if (appData.otherWords[date]) {
+                appData.otherWords[date] = appData.otherWords[date].filter(x => x.word !== wordObj.word);
+                saveData().then(() => {
+                    openOtherWordList(date);
+                    alertMsg("Silindi", "Kelime başarıyla silindi.");
+                });
+            }
+        }
+    });
+}
+
+function showOtherWordDetail(w) {
+    showScreen('screen-other-word-detail');
+    document.getElementById('other-detail-word-title').innerText = w.word;
+    
+    const typeLabel = w.type ? w.type : "Belirtilmemiş";
+    
+    const container = document.getElementById('other-word-detail-content');
+    container.innerHTML = `
+        <div class="word-detail-card" style="background: white; border-radius: 15px; padding: 25px; box-shadow: var(--shadow);">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #f0f3f8; padding-bottom:15px; margin-bottom:20px;">
+                <div>
+                    <h2 style="font-size:2.2rem; color:var(--primary-color); margin:0;">${w.word}</h2>
+                    <span style="font-size:1.1rem; color:#7f8c8d; font-style:italic;">(${w.pronunciation})</span>
+                </div>
+                <div style="text-align:right;">
+                    <span class="word-type-tag" style="background:#e8f4fd; color:#2b6cb0; padding:6px 12px; border-radius:20px; font-weight:600; font-size:0.9rem;">${typeLabel}</span>
+                </div>
+            </div>
+            <div style="margin-bottom:20px;">
+                <strong style="display:block; color:#7f8c8d; margin-bottom:5px;">Genel Anlamı</strong>
+                <p style="font-size:1.3rem; font-weight:600; color:#2d3748; margin:0;">${w.meaning}</p>
+            </div>
+            <div style="margin-bottom:20px; background:#f7fafc; padding:15px; border-radius:10px; border-left: 4px solid var(--primary-color);">
+                <strong style="display:block; color:#7f8c8d; margin-bottom:5px;">Örnek İngilizce Cümle</strong>
+                <p style="font-size:1.1rem; font-weight:500; color:#2d3748; margin:0 0 8px 0;">${w.sentenceEn}</p>
+                <strong style="display:block; color:#7f8c8d; margin-bottom:5px;">Türkçe Çevirisi</strong>
+                <p style="font-size:1.1rem; color:#4a5568; margin:0;">${w.sentenceTr}</p>
+            </div>
+            ${w.sentenceTrWithEnWord ? `
+            <div style="background:#fffaf0; padding:15px; border-radius:10px; border-left: 4px solid #dd6b20;">
+                <strong style="display:block; color:#7f8c8d; margin-bottom:5px;">İngilizce Kelimeli Türkçe Cümle</strong>
+                <p style="font-size:1.1rem; color:#2d3748; font-weight:500; margin:0;">${w.sentenceTrWithEnWord}</p>
+            </div>
+            ` : ''}
+            
+            <div style="margin-top: 25px; text-align: center;">
+                <button class="btn-primary" onclick="speakWord('${w.word.replace(/'/g, "\\'")}')" style="padding: 10px 20px; font-size: 0.95rem;">🔊 Kelimeyi Seslendir</button>
+            </div>
+        </div>
+    `;
+}
+
+// OTHER MATCHING GAME
+let otherMatchingMode = 'en-tr'; // 'en-tr' or 'tr-en'
+let otherSelectedMatchLeft = null;
+let otherSelectedMatchRight = null;
+let otherMatchedCount = 0;
+
+function getAllOtherWords() {
+    let all = [];
+    if (!appData.otherWords) return [];
+    Object.keys(appData.otherWords).forEach(date => {
+        all = all.concat(appData.otherWords[date]);
+    });
+    return all;
+}
+
+function startOtherMatchingGame(mode) {
+    const allWords = getAllOtherWords();
+    if (allWords.length < 5) {
+        alertMsg("Yetersiz Kelime", "Eşleştirme oyunu için en az 5 kelime yüklenmiş olmalıdır.", "warning");
+        return;
+    }
+    otherMatchingMode = mode;
+    showScreen('screen-other-matching');
+    
+    const titleText = mode === 'en-tr' ? "Kelime Eşleştirme (İngilizce ⟶ Türkçe)" : "Kelime Eşleştirme (Türkçe ⟶ İngilizce)";
+    document.getElementById('other-matching-title').innerText = titleText;
+    
+    restartOtherMatchingGame();
+}
+
+function restartOtherMatchingGame() {
+    otherSelectedMatchLeft = null;
+    otherSelectedMatchRight = null;
+    otherMatchedCount = 0;
+    document.getElementById('other-matching-score').innerText = `Eşleşen: 0 / 5`;
+    document.getElementById('other-matching-success-message').classList.add('hidden');
+    
+    const allWords = getAllOtherWords();
+    
+    // Choose 5 random unique words
+    let selected = [];
+    let indices = [];
+    while (selected.length < 5 && selected.length < allWords.length) {
+        const idx = Math.floor(Math.random() * allWords.length);
+        if (!indices.includes(idx)) {
+            indices.push(idx);
+            selected.push(allWords[idx]);
+        }
+    }
+    
+    // Left column: English (for en-tr) or Turkish (for tr-en)
+    const leftCol = document.getElementById('other-matching-left-column');
+    leftCol.innerHTML = '<h3>' + (otherMatchingMode === 'en-tr' ? 'İngilizce' : 'Türkçe') + '</h3>';
+    
+    const shuffledLeft = [...selected].sort(() => Math.random() - 0.5);
+    shuffledLeft.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'matching-card';
+        div.innerText = otherMatchingMode === 'en-tr' ? item.word : item.meaning;
+        div.dataset.word = item.word;
+        div.onclick = () => selectOtherMatchingLeftCard(div);
+        leftCol.appendChild(div);
+    });
+    
+    // Right column: Turkish (for en-tr) or English (for tr-en)
+    const rightCol = document.getElementById('other-matching-right-column');
+    rightCol.innerHTML = '<h3>' + (otherMatchingMode === 'en-tr' ? 'Türkçe' : 'İngilizce') + '</h3>';
+    
+    const shuffledRight = [...selected].sort(() => Math.random() - 0.5);
+    shuffledRight.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'matching-card';
+        div.innerText = otherMatchingMode === 'en-tr' ? item.meaning : item.word;
+        div.dataset.word = item.word;
+        div.onclick = () => selectOtherMatchingRightCard(div);
+        rightCol.appendChild(div);
+    });
+}
+
+function selectOtherMatchingLeftCard(card) {
+    if (card.classList.contains('matched')) return;
+    document.querySelectorAll('#other-matching-left-column .matching-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    otherSelectedMatchLeft = card;
+    checkOtherMatchingPair();
+}
+
+function selectOtherMatchingRightCard(card) {
+    if (card.classList.contains('matched')) return;
+    document.querySelectorAll('#other-matching-right-column .matching-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    otherSelectedMatchRight = card;
+    checkOtherMatchingPair();
+}
+
+function checkOtherMatchingPair() {
+    if (!otherSelectedMatchLeft || !otherSelectedMatchRight) return;
+    
+    const leftWord = otherSelectedMatchLeft.dataset.word;
+    const rightWord = otherSelectedMatchRight.dataset.word;
+    
+    if (leftWord === rightWord) {
+        otherSelectedMatchLeft.classList.remove('selected');
+        otherSelectedMatchRight.classList.remove('selected');
+        otherSelectedMatchLeft.classList.add('matched');
+        otherSelectedMatchRight.classList.add('matched');
+        
+        otherSelectedMatchLeft = null;
+        otherSelectedMatchRight = null;
+        otherMatchedCount++;
+        
+        document.getElementById('other-matching-score').innerText = `Eşleşen: ${otherMatchedCount} / 5`;
+        
+        if (otherMatchedCount === 5) {
+            document.getElementById('other-matching-success-message').classList.remove('hidden');
+        }
+    } else {
+        const tempLeft = otherSelectedMatchLeft;
+        const tempRight = otherSelectedMatchRight;
+        tempLeft.classList.add('wrong');
+        tempRight.classList.add('wrong');
+        
+        otherSelectedMatchLeft = null;
+        otherSelectedMatchRight = null;
+        
+        setTimeout(() => {
+            tempLeft.classList.remove('selected', 'wrong');
+            tempRight.classList.remove('selected', 'wrong');
+        }, 600);
+    }
+}
+
+// OTHER MC & SENTENCE TESTS
+let otherTestType = 'mc'; 
+let otherTestQuestions = [];
+let otherTestCurrentIdx = 0;
+let otherTestScore = 0;
+
+function startOtherMCTest() {
+    const allWords = getAllOtherWords();
+    if (allWords.length < 5) {
+        alertMsg("Yetersiz Kelime", "Sınav için en az 5 kelime yüklenmiş olmalıdır.", "warning");
+        return;
+    }
+    otherTestType = 'mc';
+    document.getElementById('other-test-title').innerText = "Kelime Anlam Sınavı";
+    initOtherTest();
+}
+
+function startOtherSentenceTest() {
+    const allWords = getAllOtherWords();
+    if (allWords.length < 5) {
+        alertMsg("Yetersiz Kelime", "Sınav için en az 5 kelime yüklenmiş olmalıdır.", "warning");
+        return;
+    }
+    otherTestType = 'sentence';
+    document.getElementById('other-test-title').innerText = "Kelimelerin Sorulduğu Cümle Sınavı";
+    initOtherTest();
+}
+
+function initOtherTest() {
+    showScreen('screen-other-test');
+    document.getElementById('other-test-main-view').classList.remove('hidden');
+    document.getElementById('other-test-result-view').classList.add('hidden');
+    
+    otherTestQuestions = [];
+    otherTestCurrentIdx = 0;
+    otherTestScore = 0;
+    
+    const allWords = getAllOtherWords();
+    const shuffled = [...allWords].sort(() => Math.random() - 0.5);
+    const limit = Math.min(10, shuffled.length);
+    
+    for (let i = 0; i < limit; i++) {
+        const correct = shuffled[i];
+        
+        if (otherTestType === 'mc') {
+            const isEnToTr = Math.random() > 0.5;
+            let questionText = "";
+            let correctAnswer = "";
+            let choices = [];
+            
+            if (isEnToTr) {
+                questionText = `"${correct.word}" kelimesinin Türkçe anlamı nedir?`;
+                correctAnswer = correct.meaning;
+                choices = generateOtherMCOptions(correct.meaning, allWords, 'meaning');
+            } else {
+                questionText = `Türkçe anlamı "${correct.meaning}" olan İngilizce kelime hangisidir?`;
+                correctAnswer = correct.word;
+                choices = generateOtherMCOptions(correct.word, allWords, 'word');
+            }
+            
+            otherTestQuestions.push({
+                type: 'mc',
+                question: questionText,
+                choices: choices,
+                answer: correctAnswer,
+                wordObj: correct
+            });
+        } else {
+            const isEngGap = Math.random() > 0.5;
+            let questionText = "";
+            let correctAnswer = correct.word;
+            let choices = generateOtherMCOptions(correct.word, allWords, 'word');
+            
+            if (isEngGap && correct.sentenceEn) {
+                const regex = new RegExp('\\b' + correct.word + '\\b', 'gi');
+                let gapSent = correct.sentenceEn.replace(regex, "_______");
+                
+                if (!gapSent.includes("_______")) {
+                    gapSent = correct.sentenceEn.replace(new RegExp(correct.word.substring(0,4) + '[a-z]*', 'gi'), "_______");
+                }
+                
+                questionText = `Cümledeki boşluğa hangi kelime gelmelidir?<br><br><strong>${gapSent}</strong><br><small>(${correct.sentenceTr})</small>`;
+            } else if (correct.sentenceTrWithEnWord) {
+                const regex = new RegExp('\\b' + correct.word + '\\b', 'gi');
+                let gapSent = correct.sentenceTrWithEnWord.replace(regex, "_______");
+                if (!gapSent.includes("_______")) {
+                    gapSent = correct.sentenceTrWithEnWord.replace(new RegExp(correct.word.substring(0,4) + "[a-z']*", 'gi'), "_______");
+                }
+                
+                questionText = `Türkçe cümledeki boşluğa uygun İngilizce kelimeyi yerleştirin:<br><br><strong>${gapSent}</strong>`;
+            } else {
+                questionText = `"${correct.word} (${correct.pronunciation})" kelimesi aşağıdaki hangi cümlede doğru şekilde kullanılmıştır?<br><br>Cevap şıklarından seçiniz.`;
+            }
+            
+            otherTestQuestions.push({
+                type: 'sentence',
+                question: questionText,
+                choices: choices,
+                answer: correctAnswer,
+                wordObj: correct
+            });
+        }
+    }
+    
+    renderOtherTestQuestion();
+}
+
+function generateOtherMCOptions(correctVal, allWords, key) {
+    let choices = [correctVal];
+    let attempts = 0;
+    while (choices.length < 4 && attempts < 100) {
+        attempts++;
+        const randWord = allWords[Math.floor(Math.random() * allWords.length)];
+        const val = randWord[key];
+        if (val && !choices.includes(val)) {
+            choices.push(val);
+        }
+    }
+    while (choices.length < 4) {
+        choices.push("Seçenek " + (choices.length + 1));
+    }
+    return choices.sort(() => Math.random() - 0.5);
+}
+
+function renderOtherTestQuestion() {
+    document.getElementById('other-test-progress').innerText = `${otherTestCurrentIdx + 1} / ${otherTestQuestions.length}`;
+    document.getElementById('btn-next-other-question').style.display = 'none';
+    document.getElementById('other-test-feedback').classList.add('hidden');
+    
+    const q = otherTestQuestions[otherTestCurrentIdx];
+    const container = document.getElementById('other-test-question-container');
+    container.innerHTML = '';
+    
+    const qText = document.createElement('h3');
+    qText.style.marginBottom = '25px';
+    qText.style.fontSize = '1.3rem';
+    qText.style.lineHeight = '1.5';
+    qText.innerHTML = q.question;
+    container.appendChild(qText);
+    
+    const grid = document.createElement('div');
+    grid.className = 'choices-grid';
+    
+    q.choices.forEach(choice => {
+        const btn = document.createElement('button');
+        btn.className = 'choice-btn';
+        btn.innerText = choice;
+        btn.onclick = () => selectOtherTestOption(choice, btn);
+        grid.appendChild(btn);
+    });
+    
+    container.appendChild(grid);
+}
+
+function selectOtherTestOption(selectedVal, element) {
+    const q = otherTestQuestions[otherTestCurrentIdx];
+    
+    document.querySelectorAll('#other-test-question-container .choice-btn').forEach(btn => {
+        btn.disabled = true;
+        if (btn.innerText === q.answer) {
+            btn.classList.add('correct');
+        }
+    });
+    
+    if (selectedVal === q.answer) {
+        element.classList.add('correct');
+        otherTestScore++;
+    } else {
+        element.classList.add('wrong');
+    }
+    
+    const feedbackText = document.getElementById('other-test-feedback-text');
+    feedbackText.innerHTML = `
+        <strong>Kelime:</strong> ${q.wordObj.word} (${q.wordObj.pronunciation})<br>
+        <strong>Anlamı:</strong> ${q.wordObj.meaning} (${q.wordObj.type ? q.wordObj.type : 'Belirtilmemiş'})<br>
+        <strong>Cümle:</strong> ${q.wordObj.sentenceEn}<br>
+        <strong>Çeviri:</strong> ${q.wordObj.sentenceTr}
+    `;
+    document.getElementById('other-test-feedback').classList.remove('hidden');
+    
+    document.getElementById('btn-next-other-question').style.display = 'inline-block';
+}
+
+function nextOtherQuestion() {
+    otherTestCurrentIdx++;
+    if (otherTestCurrentIdx < otherTestQuestions.length) {
+        renderOtherTestQuestion();
+    } else {
+        document.getElementById('other-test-main-view').classList.add('hidden');
+        document.getElementById('other-test-result-view').classList.remove('hidden');
+        document.getElementById('other-test-score-text').innerText = `${otherTestQuestions.length} sorudan ${otherTestScore} doğru, ${otherTestQuestions.length - otherTestScore} yanlış yaptınız.`;
+    }
+}
+
+function confirmEndOtherTest() {
+    Swal.fire({
+        title: 'Testi Bitir?',
+        text: 'Devam etmekte olan testiniz sonlandırılacaktır. Emin misiniz?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: themes[currentLang].primary,
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Evet, Bitir',
+        cancelButtonText: 'İptal'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            showOtherWorkspace();
+        }
+    });
+}
+

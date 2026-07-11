@@ -242,6 +242,11 @@
                     <p>Doğru/yanlış oranlarınızı görün ve yanlış bilinen kelimeleri çalışın.</p>
                 </div>
 
+                <div class="dash-card view-other-workspace" onclick="showOtherWorkspace()" style="cursor: pointer; border: 2px solid var(--primary-color); background: rgba(106, 90, 249, 0.05);">
+                    <h3>🌐 Diğer Kelime Çalışma Alanı</h3>
+                    <p>Çift cümleli özel Word formatında kelimeler yükleyin, listeleyin ve testlerle çalışın.</p>
+                </div>
+
                 <div class="dash-card backup-restore">
                     <h3>Yedekleme & Aktarma</h3>
                     <p>Bu dilin verilerini yedekleyin veya başka bir cihazdan aktarın.</p>
@@ -999,6 +1004,151 @@
                 </div>
             </div>
         </section>
+
+        <!-- Screen 15: Other Word Workspace Dashboard -->
+        <section id="screen-other-workspace" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-dashboard')">⟵ Geri</button>
+                <h1>Diğer Kelime Çalışma Alanı</h1>
+                <div></div>
+            </header>
+
+            <div class="dashboard-grid">
+                <!-- Card 1: Upload Word Document (Format 2) -->
+                <div class="dash-card other-upload-word" style="border: 2px solid var(--accent); background: rgba(255, 240, 245, 0.9);">
+                    <h3>Kelime Listesi Yükle</h3>
+                    <p>Çift cümleli Word formatındaki (.docx) yeni kelimeler ekleyin.</p>
+                    <label class="btn-primary">
+                        Dosya Seç
+                        <input type="file" id="file-other-word-upload" accept=".docx" hidden>
+                    </label>
+                </div>
+
+                <!-- Card 2: View Word Lists -->
+                <div class="dash-card other-view-lists" onclick="showOtherWordLists()">
+                    <h3>Kelimeler Bölümü</h3>
+                    <p>Bu çalışma alanında yüklü kelime listelerini tarihine göre görün.</p>
+                </div>
+
+                <!-- Card 3: Word Matching (English -> Turkish) -->
+                <div class="dash-card other-matching-en-tr" onclick="startOtherMatchingGame('en-tr')">
+                    <h3>🤝 İngilizce ⟶ Türkçe Eşleştirme</h3>
+                    <p>Kelimeleri Türkçe anlamları ile eşleştirerek pratik yapın.</p>
+                </div>
+
+                <!-- Card 4: Word Matching (Turkish -> English) -->
+                <div class="dash-card other-matching-tr-en" onclick="startOtherMatchingGame('tr-en')">
+                    <h3>🤝 Türkçe ⟶ İngilizce Eşleştirme</h3>
+                    <p>Türkçe anlamları İngilizce kelimeler ile eşleştirerek pratik yapın.</p>
+                </div>
+
+                <!-- Card 5: Multiple Choice Test -->
+                <div class="dash-card other-mc-test" onclick="startOtherMCTest()">
+                    <h3>📝 Kelime Anlam Sınavı</h3>
+                    <p>Çoktan seçmeli anlam testleriyle kelime bilginizi ölçün.</p>
+                </div>
+
+                <!-- Card 6: Sentence Test -->
+                <div class="dash-card other-sentence-test" onclick="startOtherSentenceTest()">
+                    <h3>✍️ Kelimelerin Sorulduğu Bölüm</h3>
+                    <p>Cümlelerdeki boşlukları doldurarak kelimeleri bağlamında test edin.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 16: Other Word Lists (By Date) -->
+        <section id="screen-other-word-dates" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-other-workspace')">⟵ Geri</button>
+                <h1>Diğer Kelime Listeleri</h1>
+                <div></div>
+            </header>
+            <div class="content-area">
+                <div id="other-date-list-container" class="list-container">
+                    <!-- Dates will be injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 17: Other Words in a Date -->
+        <section id="screen-other-words" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-other-word-dates')">⟵ Geri</button>
+                <h1 id="other-words-date-title">Tarih</h1>
+                <div></div>
+            </header>
+            <div class="content-area with-white-bg">
+                <ul id="other-words-list" class="words-list">
+                    <!-- Words will be injected here -->
+                </ul>
+            </div>
+        </section>
+
+        <!-- Screen 18: Other Word Detail -->
+        <section id="screen-other-word-detail" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-other-words')">⟵ Geri</button>
+                <h1 id="other-detail-word-title">Kelime Detayı</h1>
+                <div></div>
+            </header>
+            <div class="content-area detail-area">
+                <div id="other-word-detail-content">
+                    <!-- Details injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 19: Other Matching Game -->
+        <section id="screen-other-matching" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="goBack('screen-other-workspace')">⟵ Geri</button>
+                <h1 id="other-matching-title">Kelime Eşleştirme</h1>
+                <div><span id="other-matching-score" style="font-weight: 600;">Eşleşen: 0 / 5</span></div>
+            </header>
+            <div class="content-area text-center">
+                <p style="margin-top: 10px; color: var(--text-light);" id="other-matching-instructions">Kelimeyi seçin, ardından doğru karşılığını seçerek eşleştirin.</p>
+                <div class="matching-game-layout" style="margin-top: 20px;">
+                    <div class="matching-column" id="other-matching-left-column"></div>
+                    <div class="matching-column" id="other-matching-right-column"></div>
+                </div>
+                <div id="other-matching-success-message" class="hidden" style="margin-top: 25px;">
+                    <h3 style="color: var(--success); margin: 15px 0;">Tebrikler! Tüm kelimeleri doğru eşleştirdiniz! 🎉</h3>
+                    <button class="btn-primary" onclick="restartOtherMatchingGame()">Yeni Kelimelerle Oyna</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Screen 20: Other Word Test (Quiz & Questions) -->
+        <section id="screen-other-test" class="screen">
+            <header class="top-bar">
+                <button class="btn-back" onclick="confirmEndOtherTest()">⟵ Testi Bitir</button>
+                <h1 id="other-test-title">Kelime Sınavı</h1>
+                <div id="other-test-progress" style="font-weight: 600;">1 / 10</div>
+            </header>
+            <div class="content-area test-area">
+                <div id="other-test-main-view">
+                    <div id="other-test-question-container" class="question-container">
+                        <!-- Question generated dynamically -->
+                    </div>
+                    <div id="other-test-feedback" class="test-feedback hidden" style="margin-top:15px; padding:15px; border-radius:10px; background:rgba(255,255,255,0.9); border-left: 5px solid var(--primary-color);">
+                        <strong>Doğru Cevap Bilgisi:</strong>
+                        <p id="other-test-feedback-text" style="margin-top:5px; font-size:0.95rem; line-height:1.4; color:var(--text-main);"></p>
+                    </div>
+                    <div class="test-controls" style="margin-top: 15px;">
+                        <button id="btn-next-other-question" class="btn-primary" style="display: none;" onclick="nextOtherQuestion()">Sonraki Soru</button>
+                    </div>
+                </div>
+                <div id="other-test-result-view" class="hidden text-center" style="background: white; border-radius: 15px; padding: 30px; box-shadow: var(--shadow); margin-top: 20px;">
+                    <h2 style="color: var(--primary-color); margin-top:10px;">Test Tamamlandı!</h2>
+                    <h3 style="margin: 20px 0;" id="other-test-score-text">10 sorudan 8 doğru, 2 yanlış yaptınız.</h3>
+                    <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px;">
+                        <button class="btn-primary" onclick="restartOtherTest()">Yeniden Başlat</button>
+                        <button class="btn-primary" style="background: #95a5a6;" onclick="goBack('screen-other-workspace')">Çalışma Alanına Dön</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
 <!-- Loading Overlay -->
     <div id="loading-overlay" class="hidden">
         <div class="spinner"></div>

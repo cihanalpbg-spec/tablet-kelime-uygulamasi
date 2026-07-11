@@ -1724,3 +1724,19 @@ h1, h2, h3, h4 {
     border-color: #dc3545 !important;
     color: #721c24 !important;
 }
+
+/* Other Workspace Custom CSS */
+.word-type-tag {
+    background: #e8f4fd;
+    color: #2b6cb0;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: inline-block;
+}
+.other-upload-word label.btn-primary {
+    cursor: pointer;
+    display: inline-block;
+}
+
