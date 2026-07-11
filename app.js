@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('file-backup-upload').addEventListener('change', handleBackupUpload);
     document.getElementById('file-flashcard-upload').addEventListener('change', handleFlashcardUpload);
     document.getElementById('file-other-word-upload').addEventListener('change', handleOtherWordUpload);
+    initFloatingEditorToolbar();
 });
 
 // --- NAVIGATION ---
@@ -4927,4 +4928,115 @@ function mergeAppData(cloudData) {
         }
     }
 }
+
+// --- DYNAMIC FLOATING TOOLBAR IMPLEMENTATION ---
+function initFloatingEditorToolbar() {
+    if (document.getElementById('floating-editor-toolbar')) return;
+    
+    const toolbar = document.createElement('div');
+    toolbar.id = 'floating-editor-toolbar';
+    toolbar.style.cssText = `
+        position: absolute;
+        background: #2d3748;
+        border-radius: 8px;
+        padding: 6px 10px;
+        display: none;
+        gap: 8px;
+        align-items: center;
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -2px rgba(0,0,0,0.2);
+        z-index: 10000;
+        opacity: 0;
+        transition: opacity 0.15s ease-in-out;
+        border: 1px solid #4a5568;
+    `;
+    
+    toolbar.innerHTML = `
+        <button onclick="formatDoc('justifyLeft')" type="button" style="padding: 4px 8px; border-radius: 4px; border: none; background: #4a5568; color: white; cursor: pointer; font-size: 0.8rem; font-weight: bold;">⬅️ Sola</button>
+        <button onclick="formatDoc('justifyCenter')" type="button" style="padding: 4px 8px; border-radius: 4px; border: none; background: #4a5568; color: white; cursor: pointer; font-size: 0.8rem; font-weight: bold;">↔️ Ortala</button>
+        <button onclick="formatDoc('justifyFull')" type="button" style="padding: 4px 8px; border-radius: 4px; border: none; background: #4a5568; color: white; cursor: pointer; font-size: 0.8rem; font-weight: bold;">↔️ İki Yana</button>
+        
+        <div style="width: 1px; height: 18px; background: #4a5568;"></div>
+        
+        <span style="font-size: 0.75rem; color: #cbd5e0; font-weight: bold;">Fon:</span>
+        <button onclick="formatDoc('backColor', 'white')" type="button" style="width: 18px; height: 18px; border-radius: 3px; border: 1px solid #718096; background: white; cursor: pointer; padding: 0;"></button>
+        <button onclick="formatDoc('backColor', '#ffccd5')" type="button" style="width: 18px; height: 18px; border-radius: 3px; border: 1px solid #718096; background: #ffccd5; cursor: pointer; padding: 0;"></button>
+        <button onclick="formatDoc('backColor', '#fff3cd')" type="button" style="width: 18px; height: 18px; border-radius: 3px; border: 1px solid #718096; background: #fff3cd; cursor: pointer; padding: 0;"></button>
+        <button onclick="formatDoc('backColor', '#d4edda')" type="button" style="width: 18px; height: 18px; border-radius: 3px; border: 1px solid #718096; background: #d4edda; cursor: pointer; padding: 0;"></button>
+        <button onclick="formatDoc('backColor', '#d1ecf1')" type="button" style="width: 18px; height: 18px; border-radius: 3px; border: 1px solid #718096; background: #d1ecf1; cursor: pointer; padding: 0;"></button>
+        <button onclick="formatDoc('backColor', 'transparent')" type="button" style="padding: 3px 6px; font-size: 0.7rem; border-radius: 3px; border: none; background: #e53e3e; color: white; cursor: pointer;">Sil</button>
+    `;
+    
+    document.body.appendChild(toolbar);
+    
+    // Selection listener
+    document.addEventListener('selectionchange', handleTextSelection);
+}
+
+function handleTextSelection() {
+    const editor = document.getElementById('edit-note-content-input');
+    const toolbar = document.getElementById('floating-editor-toolbar');
+    if (!editor || !toolbar) return;
+    
+    // Check if the edit mode is active
+    const editModeContainer = document.getElementById('grammar-edit-mode');
+    const editModeActive = editModeContainer && !editModeContainer.classList.contains('hidden');
+    if (!editModeActive) {
+        toolbar.style.display = 'none';
+        toolbar.style.opacity = '0';
+        return;
+    }
+    
+    const selection = window.getSelection();
+    if (!selection.rangeCount || selection.isCollapsed) {
+        toolbar.style.display = 'none';
+        toolbar.style.opacity = '0';
+        return;
+    }
+    
+    const range = selection.getRangeAt(0);
+    // Make sure selection is inside the contenteditable editor
+    if (!editor.contains(range.commonAncestorContainer)) {
+        toolbar.style.display = 'none';
+        toolbar.style.opacity = '0';
+        return;
+    }
+    
+    const rect = range.getBoundingClientRect();
+    toolbar.style.display = 'flex';
+    
+    const toolbarHeight = toolbar.offsetHeight || 38;
+    const toolbarWidth = toolbar.offsetWidth || 320;
+    
+    const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    
+    let top = rect.top + scrollTop - toolbarHeight - 10;
+    let left = rect.left + scrollLeft + (rect.width / 2) - (toolbarWidth / 2);
+    
+    if (left < 10) left = 10;
+    if (left + toolbarWidth > window.innerWidth - 10) {
+        left = window.innerWidth - toolbarWidth - 10;
+    }
+    if (rect.top - toolbarHeight - 10 < 10) {
+        top = rect.bottom + scrollTop + 10;
+    }
+    
+    toolbar.style.top = `${top}px`;
+    toolbar.style.left = `${left}px`;
+    setTimeout(() => {
+        toolbar.style.opacity = '1';
+    }, 10);
+}
+
+// Keyboard listener for Ctrl+S inside grammar edit mode
+document.addEventListener('keydown', function(event) {
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        const editModeContainer = document.getElementById('grammar-edit-mode');
+        const editModeActive = editModeContainer && !editModeContainer.classList.contains('hidden');
+        if (editModeActive) {
+            event.preventDefault();
+            saveGrammarEdit();
+        }
+    }
+});
 
