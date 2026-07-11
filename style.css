@@ -1761,3 +1761,47 @@ h1, h2, h3, h4 {
     display: inline-block;
 }
 
+/* Professional Word Table Styles */
+.professional-word-table {
+    width: 100%;
+    margin-top: 10px;
+    border-collapse: collapse;
+}
+.professional-word-table th {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #718096;
+    background: #f7fafc;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid #e2e8f0;
+}
+.professional-word-table th, .professional-word-table td {
+    padding: 12px 10px;
+    vertical-align: middle;
+}
+.word-table-row:hover {
+    background-color: #f7fafc !important;
+}
+.word-table-row.learned {
+    background-color: #f0fff4 !important;
+    opacity: 0.75;
+}
+.word-table-row.learned td {
+    text-decoration: line-through;
+    color: #a0aec0 !important;
+}
+.word-table-row.learned .word-checkbox {
+    border-color: var(--success);
+    background: var(--success);
+}
+.word-table-row.learned .word-checkbox::after {
+    content: '✓';
+    color: white;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+}
+

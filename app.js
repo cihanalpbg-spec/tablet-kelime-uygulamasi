@@ -948,53 +948,68 @@ function deleteWordList(date) {
 function openWordList(date) {
     document.getElementById('words-date-title').innerText = date;
     const list = document.getElementById('words-list');
-    list.innerHTML = '';
     
     currentWordList = appData.words[date] || [];
     
     // Sort alphabetically by word
     currentWordList.sort((a, b) => a.word.localeCompare(b.word));
     
+    if (currentWordList.length === 0) {
+        list.innerHTML = '<p style="text-align:center; color:#777; padding: 20px;">Bu tarihte kelime bulunmuyor.</p>';
+        showScreen('screen-words');
+        return;
+    }
+    
+    // Create Table
+    list.innerHTML = `
+        <table class="professional-word-table" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+            <thead>
+                <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;">
+                    <th style="width: 50px; padding: 12px 8px; text-align: center;">Durum</th>
+                    <th style="padding: 12px 8px;">Kelime</th>
+                    <th style="padding: 12px 8px;">Okunuşu</th>
+                    <th style="padding: 12px 8px;">Anlamı</th>
+                    <th style="width: 60px; padding: 12px 8px; text-align: center;">İşlem</th>
+                </tr>
+            </thead>
+            <tbody id="words-table-body"></tbody>
+        </table>
+    `;
+    
+    const tbody = document.getElementById('words-table-body');
+    
     currentWordList.forEach((w, index) => {
-        const li = document.createElement('li');
-        li.className = 'word-row';
-        li.style.display = 'flex';
-        li.style.justifyContent = 'space-between';
-        li.style.alignItems = 'center';
+        const tr = document.createElement('tr');
+        tr.className = 'word-table-row';
+        tr.style.cssText = `
+            border-bottom: 1px solid #edf2f7; 
+            cursor: pointer; 
+            transition: background 0.15s ease;
+        `;
+        tr.onclick = () => showWordDetailAtIndex(index);
         
-        const leftDiv = document.createElement('div');
-        leftDiv.style.display = 'flex';
-        leftDiv.style.alignItems = 'center';
-        leftDiv.style.flex = '1';
-        leftDiv.style.cursor = 'pointer';
-        leftDiv.onclick = () => showWordDetail(w);
+        const typeStr = w.type ? `<span class="word-type-tag" style="background:#e8f4fd; color:#2b6cb0; padding:2px 8px; border-radius:10px; font-weight:600; font-size:0.75rem; margin-left:6px;">${w.type}</span>` : '';
+        const pronStr = w.pronunciation ? `(${w.pronunciation})` : (w.pron ? `(${w.pron})` : '');
         
-        leftDiv.innerHTML = `
-            <div class="word-checkbox" onclick="event.stopPropagation(); this.parentElement.parentElement.classList.toggle('learned')"></div>
-            <div>
-                <span class="word-main">${w.word}</span>
-                ${w.type ? `<span class="word-type">(${w.type})</span>` : ''}
-                <span class="word-meaning">${w.meaning}</span>
-            </div>
+        tr.innerHTML = `
+            <td style="padding: 12px 8px; text-align: center;" onclick="event.stopPropagation();">
+                <div class="word-checkbox" onclick="toggleLearnedWordRow(this)" style="margin: 0 auto; cursor: pointer;"></div>
+            </td>
+            <td style="padding: 12px 8px; font-weight: 600; color: #2d3748;">
+                ${w.word} ${typeStr}
+            </td>
+            <td style="padding: 12px 8px; color: #718096; font-style: italic;">
+                ${pronStr}
+            </td>
+            <td style="padding: 12px 8px; color: #4a5568;">
+                ${w.meaning}
+            </td>
+            <td style="padding: 12px 8px; text-align: center;" onclick="event.stopPropagation();">
+                <button class="btn-delete" onclick="deleteWord('${date}', ${JSON.stringify(w).replace(/"/g, '&quot;')})" style="background: none; border: none; color: #e74c3c; cursor: pointer; font-size: 1.1rem; padding: 5px;">🗑️</button>
+            </td>
         `;
         
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn-delete';
-        deleteBtn.innerHTML = '🗑️';
-        deleteBtn.style.background = 'none';
-        deleteBtn.style.border = 'none';
-        deleteBtn.style.cursor = 'pointer';
-        deleteBtn.style.fontSize = '1.2rem';
-        deleteBtn.style.marginLeft = '15px';
-        deleteBtn.style.padding = '5px 10px';
-        deleteBtn.onclick = (e) => {
-            e.stopPropagation();
-            deleteWord(date, w);
-        };
-        
-        li.appendChild(leftDiv);
-        li.appendChild(deleteBtn);
-        list.appendChild(li);
+        tbody.appendChild(tr);
     });
     
     showScreen('screen-words');
@@ -1222,6 +1237,19 @@ function showWordDetail(w) {
         let html = processList(w.antonyms);
         container.innerHTML += `<div class="detail-block db-antonyms"><h3>Zıt Anlamlıları</h3>${html}</div>`;
     }
+    
+    // Check navigation states
+    const inList = currentDetailWords && currentDetailWords.length > 0 && currentDetailIndex >= 0 && currentDetailIndex < currentDetailWords.length && currentDetailWords[currentDetailIndex].word === w.word;
+    const activePrev = inList && currentDetailIndex > 0;
+    const activeNext = inList && currentDetailIndex < currentDetailWords.length - 1;
+    
+    container.innerHTML += `
+        <div style="margin-top: 25px; display: flex; justify-content: space-between; gap: 15px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+            <button class="btn-primary" onclick="navigateWordDetail(-1)" style="flex: 1; padding: 10px; font-size: 0.9rem; background: ${activePrev ? 'var(--primary-color)' : '#cbd5e0'}; border: none; cursor: ${activePrev ? 'pointer' : 'not-allowed'}; color: white; border-radius: 8px;" ${activePrev ? '' : 'disabled'}>◀ Önceki Kelime</button>
+            <button class="btn-primary" onclick="speakWord('${w.word.replace(/'/g, "\\'")}')" style="flex: 1.5; padding: 10px; font-size: 0.9rem; border-radius: 8px;">🔊 Kelimeyi Seslendir</button>
+            <button class="btn-primary" onclick="navigateWordDetail(1)" style="flex: 1; padding: 10px; font-size: 0.9rem; background: ${activeNext ? 'var(--primary-color)' : '#cbd5e0'}; border: none; cursor: ${activeNext ? 'pointer' : 'not-allowed'}; color: white; border-radius: 8px;" ${activeNext ? '' : 'disabled'}>Sonraki Kelime ▶</button>
+        </div>
+    `;
 
     showScreen('screen-word-detail');
 }
@@ -4323,18 +4351,63 @@ function openOtherWordList(date) {
     const container = document.getElementById('other-words-list');
     container.innerHTML = '';
     
-    list.forEach(w => {
-        const li = document.createElement('li');
-        li.className = 'word-item-row';
-        li.innerHTML = `
-            <div class="word-main-info" onclick="showOtherWordDetail(${JSON.stringify(w).replace(/"/g, '&quot;')})">
-                <span class="word-name">${w.word}</span>
-                <span class="word-pron">(${w.pronunciation})</span>
-                <span class="word-meaning-preview">${w.meaning}</span>
-            </div>
-            <button class="btn-delete-word" style="background: none; border: none; color: #e74c3c; cursor: pointer; font-size: 1.1rem; padding: 5px 10px;" onclick="deleteOtherWord('${date}', ${JSON.stringify(w).replace(/"/g, '&quot;')})">🗑️</button>
+    currentOtherWordList = list;
+    
+    if (list.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:#777; padding: 20px;">Bu tarihte kelime bulunmuyor.</p>';
+        return;
+    }
+    
+    // Create Table for Other Words
+    container.innerHTML = `
+        <table class="professional-word-table" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+            <thead>
+                <tr style="border-bottom: 2px solid #e2e8f0; text-align: left;">
+                    <th style="width: 40px; padding: 12px 8px; text-align: center;">No</th>
+                    <th style="padding: 12px 8px;">Kelime</th>
+                    <th style="padding: 12px 8px;">Okunuşu</th>
+                    <th style="padding: 12px 8px;">Anlamı</th>
+                    <th style="width: 60px; padding: 12px 8px; text-align: center;">İşlem</th>
+                </tr>
+            </thead>
+            <tbody id="other-words-table-body"></tbody>
+        </table>
+    `;
+    
+    const tbody = document.getElementById('other-words-table-body');
+    
+    list.forEach((w, index) => {
+        const tr = document.createElement('tr');
+        tr.className = 'word-table-row';
+        tr.style.cssText = `
+            border-bottom: 1px solid #edf2f7; 
+            cursor: pointer; 
+            transition: background 0.15s ease;
         `;
-        container.appendChild(li);
+        tr.onclick = () => showOtherWordDetailAtIndex(index);
+        
+        const typeStr = w.type ? `<span class="word-type-tag" style="background:#e8f4fd; color:#2b6cb0; padding:2px 8px; border-radius:10px; font-weight:600; font-size:0.75rem; margin-left:6px;">${w.type}</span>` : '';
+        const pronStr = w.pronunciation ? `(${w.pronunciation})` : (w.pron ? `(${w.pron})` : '');
+        
+        tr.innerHTML = `
+            <td style="padding: 12px 8px; text-align: center; color: #a0aec0; font-size: 0.85rem;">
+                ${index + 1}
+            </td>
+            <td style="padding: 12px 8px; font-weight: 600; color: #2d3748;">
+                ${w.word} ${typeStr}
+            </td>
+            <td style="padding: 12px 8px; color: #718096; font-style: italic;">
+                ${pronStr}
+            </td>
+            <td style="padding: 12px 8px; color: #4a5568;">
+                ${w.meaning}
+            </td>
+            <td style="padding: 12px 8px; text-align: center;" onclick="event.stopPropagation();">
+                <button class="btn-delete-word" onclick="deleteOtherWord('${date}', ${JSON.stringify(w).replace(/"/g, '&quot;')})" style="background: none; border: none; color: #e74c3c; cursor: pointer; font-size: 1.1rem; padding: 5px;">🗑️</button>
+            </td>
+        `;
+        
+        tbody.appendChild(tr);
     });
 }
 
@@ -4367,6 +4440,11 @@ function showOtherWordDetail(w) {
     
     const typeLabel = w.type ? w.type : "Belirtilmemiş";
     
+    // Check navigation states
+    const inList = currentDetailWords && currentDetailWords.length > 0 && currentDetailIndex >= 0 && currentDetailIndex < currentDetailWords.length && currentDetailWords[currentDetailIndex].word === w.word;
+    const activePrev = inList && currentDetailIndex > 0;
+    const activeNext = inList && currentDetailIndex < currentDetailWords.length - 1;
+    
     const container = document.getElementById('other-word-detail-content');
     container.innerHTML = `
         <div class="word-detail-card" style="background: white; border-radius: 15px; padding: 25px; box-shadow: var(--shadow);">
@@ -4396,8 +4474,10 @@ function showOtherWordDetail(w) {
             </div>
             ` : ''}
             
-            <div style="margin-top: 25px; text-align: center;">
-                <button class="btn-primary" onclick="speakWord('${w.word.replace(/'/g, "\\'")}')" style="padding: 10px 20px; font-size: 0.95rem;">🔊 Kelimeyi Seslendir</button>
+            <div style="margin-top: 25px; display: flex; justify-content: space-between; gap: 15px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+                <button class="btn-primary" onclick="navigateWordDetail(-1)" style="flex: 1; padding: 10px; font-size: 0.9rem; background: ${activePrev ? 'var(--primary-color)' : '#cbd5e0'}; border: none; cursor: ${activePrev ? 'pointer' : 'not-allowed'}; color: white; border-radius: 8px;" ${activePrev ? '' : 'disabled'}>◀ Önceki Kelime</button>
+                <button class="btn-primary" onclick="speakWord('${w.word.replace(/'/g, "\\'")}')" style="flex: 1.5; padding: 10px; font-size: 0.9rem; border-radius: 8px;">🔊 Kelimeyi Seslendir</button>
+                <button class="btn-primary" onclick="navigateWordDetail(1)" style="flex: 1; padding: 10px; font-size: 0.9rem; background: ${activeNext ? 'var(--primary-color)' : '#cbd5e0'}; border: none; cursor: ${activeNext ? 'pointer' : 'not-allowed'}; color: white; border-radius: 8px;" ${activeNext ? '' : 'disabled'}>Sonraki Kelime ▶</button>
             </div>
         </div>
     `;
@@ -5083,4 +5163,49 @@ document.addEventListener('keydown', function(event) {
         }
     }
 });
+
+// Word Navigation and Layout helper functions
+let currentDetailWords = [];
+let currentDetailIndex = 0;
+let currentDetailType = 'main';
+let currentOtherWordList = [];
+
+function showWordDetailAtIndex(index) {
+    if (index < 0 || index >= currentWordList.length) return;
+    currentDetailIndex = index;
+    currentDetailWords = currentWordList;
+    currentDetailType = 'main';
+    
+    const w = currentDetailWords[index];
+    showWordDetail(w);
+}
+
+function showOtherWordDetailAtIndex(index) {
+    if (index < 0 || index >= currentOtherWordList.length) return;
+    currentDetailIndex = index;
+    currentDetailWords = currentOtherWordList;
+    currentDetailType = 'other';
+    
+    const w = currentDetailWords[index];
+    showOtherWordDetail(w);
+}
+
+function navigateWordDetail(direction) {
+    const newIndex = currentDetailIndex + direction;
+    if (newIndex < 0 || newIndex >= currentDetailWords.length) return;
+    
+    if (currentDetailType === 'main') {
+        showWordDetailAtIndex(newIndex);
+    } else {
+        showOtherWordDetailAtIndex(newIndex);
+    }
+}
+
+function toggleLearnedWordRow(checkboxEl) {
+    checkboxEl.classList.toggle('checked');
+    const row = checkboxEl.closest('tr');
+    if (row) {
+        row.classList.toggle('learned');
+    }
+}
 
